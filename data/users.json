@@ -1,0 +1,91 @@
+[
+  {
+    "id": "usr_001",
+    "email": "sarah.chen@example.com",
+    "name": "Sarah Chen",
+    "plan": "premium",
+    "account_status": "active",
+    "last_login": "2026-08-03T10:22:14Z",
+    "created_at": "2024-03-15T08:00:00Z",
+    "total_orders": 12,
+    "store_credit": 25.00
+  },
+  {
+    "id": "usr_002",
+    "email": "james.patel@example.com",
+    "name": "James Patel",
+    "plan": "free",
+    "account_status": "active",
+    "last_login": "2026-07-28T16:45:00Z",
+    "created_at": "2025-01-10T12:00:00Z",
+    "total_orders": 3,
+    "store_credit": 0.00
+  },
+  {
+    "id": "usr_003",
+    "email": "maria.gonzalez@example.com",
+    "name": "Maria Gonzalez",
+    "plan": "premium",
+    "account_status": "active",
+    "last_login": "2026-08-01T09:10:05Z",
+    "created_at": "2023-11-22T14:30:00Z",
+    "total_orders": 28,
+    "store_credit": 10.00
+  },
+  {
+    "id": "usr_004",
+    "email": "derek.kim@example.com",
+    "name": "Derek Kim",
+    "plan": "free",
+    "account_status": "suspended",
+    "last_login": "2026-05-14T11:00:00Z",
+    "created_at": "2025-06-01T09:00:00Z",
+    "total_orders": 1,
+    "store_credit": 0.00,
+    "suspension_reason": "Payment dispute — account under review"
+  },
+  {
+    "id": "usr_005",
+    "email": "linda.wu@example.com",
+    "name": "Linda Wu",
+    "plan": "premium",
+    "account_status": "active",
+    "last_login": "2026-08-02T20:35:50Z",
+    "created_at": "2022-07-04T16:00:00Z",
+    "total_orders": 47,
+    "store_credit": 75.00
+  },
+  {
+    "id": "usr_006",
+    "email": "tom.nguyen@example.com",
+    "name": "Tom Nguyen",
+    "plan": "free",
+    "account_status": "active",
+    "last_login": "2026-06-30T08:00:00Z",
+    "created_at": "2026-02-14T10:00:00Z",
+    "total_orders": 2,
+    "store_credit": 5.00
+  },
+  {
+    "id": "usr_007",
+    "email": "aisha.johnson@example.com",
+    "name": "Aisha Johnson",
+    "plan": "premium",
+    "account_status": "active",
+    "last_login": "2026-07-31T14:22:00Z",
+    "created_at": "2024-09-01T00:00:00Z",
+    "total_orders": 9,
+    "store_credit": 0.00
+  },
+  {
+    "id": "usr_008",
+    "email": "carlos.rivera@example.com",
+    "name": "Carlos Rivera",
+    "plan": "free",
+    "account_status": "active",
+    "last_login": "2026-07-15T17:05:00Z",
+    "created_at": "2025-08-20T11:00:00Z",
+    "total_orders": 5,
+    "store_credit": 15.00
+  }
+]

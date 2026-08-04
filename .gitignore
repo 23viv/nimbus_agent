@@ -1,0 +1,41 @@
+# ── Secrets ────────────────────────────────────────────────────────────────────
+.env
+.env.example
+
+# ── Python ─────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ────────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+
+# ── Vector store (auto-generated — rebuild with scripts/ingest.py) ─────────────
+vector_store/
+
+# ── Tool call logs ──────────────────────────────────────────────────────────────
+logs/
+
+# ── LangSmith / LangChain cache ────────────────────────────────────────────────
+.langchain/
+
+# ── Sentence-transformers model cache ──────────────────────────────────────────
+.cache/
+sentence_transformers/
+
+# ── IDEs ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.code-workspace
+
+# ── OS ─────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
