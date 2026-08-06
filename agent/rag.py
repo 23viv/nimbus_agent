@@ -1,76 +1,66 @@
 """
 Nimbus Support Agent — RAG Pipeline
-Handles document ingestion (chunking + embedding) and retrieval.
-Uses ChromaDB for vector storage and sentence-transformers for embeddings.
+Handles document ingestion (chunking) and retrieval.
+Uses pure BM25 keyword search — no vector database or ML embeddings required.
 """
 
+import math
 import re
+from collections import Counter
 from pathlib import Path
 
-import chromadb
-from chromadb.config import Settings
-from sentence_transformers import SentenceTransformer
+from langsmith import traceable
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-_DOCS_DIR = Path(__file__).parent.parent / "docs"
-_VECTOR_STORE_DIR = Path(__file__).parent.parent / "vector_store"
-_COLLECTION_NAME = "nimbus_knowledge"
-_EMBED_MODEL = "all-MiniLM-L6-v2"
-_CHUNK_SIZE = 300       # target words per chunk
-_CHUNK_OVERLAP = 50     # word overlap between chunks
-_TOP_K = 4              # number of chunks to retrieve
-# ChromaDB returns L2 distances; lower = more similar.
-# Distance > 1.2 means the chunk is likely off-topic.
-_DISTANCE_THRESHOLD = 1.2
+_DOCS_DIR        = Path(__file__).parent.parent / "docs"
+_CHUNK_SIZE      = 300   # target words per chunk
+_CHUNK_OVERLAP   = 50    # word overlap between chunks
+_TOP_K           = 4     # number of chunks to retrieve
+_SCORE_THRESHOLD = 0.01  # minimum BM25 score to include a result
+
+# BM25 hyperparameters (standard defaults)
+_BM25_K1 = 1.5
+_BM25_B  = 0.75
 
 
-# ── Embedding model (lazy-loaded singleton) ───────────────────────────────────
-_embed_model: SentenceTransformer | None = None
-
-def _get_embed_model() -> SentenceTransformer:
-    global _embed_model
-    if _embed_model is None:
-        _embed_model = SentenceTransformer(_EMBED_MODEL)
-    return _embed_model
+# ── In-memory store ───────────────────────────────────────────────────────────
+# Each entry: {"id": str, "text": str, "source": str, "tokens": list[str]}
+_chunks: list[dict] = []
 
 
-# ── ChromaDB client (lazy-loaded singleton) ───────────────────────────────────
-_chroma_client: chromadb.PersistentClient | None = None
-_collection: chromadb.Collection | None = None
+# ── Text helpers ──────────────────────────────────────────────────────────────
+_STOPWORDS = {
+    "a", "an", "the", "is", "it", "in", "on", "at", "to", "for",
+    "of", "and", "or", "but", "with", "this", "that", "are", "was",
+    "be", "by", "from", "as", "we", "you", "your", "our", "can",
+    "will", "has", "have", "had", "not", "if", "so", "do", "up",
+    "its", "my", "i", "no", "any", "all", "also", "than", "then",
+}
 
-def _get_collection() -> chromadb.Collection:
-    global _chroma_client, _collection
-    if _collection is None:
-        _VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
-        _chroma_client = chromadb.PersistentClient(
-            path=str(_VECTOR_STORE_DIR),
-            settings=Settings(anonymized_telemetry=False),
-        )
-        _collection = _chroma_client.get_or_create_collection(
-            name=_COLLECTION_NAME,
-            metadata={"hnsw:space": "l2"},
-        )
-    return _collection
+def _tokenize(text: str) -> list[str]:
+    """Lowercase, strip punctuation, remove stopwords."""
+    tokens = re.findall(r"[a-z]+", text.lower())
+    return [t for t in tokens if t not in _STOPWORDS]
 
 
-# ── Text chunking ─────────────────────────────────────────────────────────────
 def _chunk_text(text: str, source: str) -> list[dict]:
     """Split text into overlapping word-based chunks."""
     text = re.sub(r"\r\n", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
 
-    words = text.split()
-    chunks = []
-    start = 0
+    words     = text.split()
+    chunks    = []
+    start     = 0
     chunk_idx = 0
 
     while start < len(words):
-        end = min(start + _CHUNK_SIZE, len(words))
+        end        = min(start + _CHUNK_SIZE, len(words))
         chunk_text = " ".join(words[start:end])
         chunks.append({
-            "id": f"{source}__chunk_{chunk_idx:04d}",
-            "text": chunk_text,
+            "id":     f"{source}__chunk_{chunk_idx:04d}",
+            "text":   chunk_text,
             "source": source,
+            "tokens": _tokenize(chunk_text),
         })
         chunk_idx += 1
         if end == len(words):
@@ -80,81 +70,97 @@ def _chunk_text(text: str, source: str) -> list[dict]:
     return chunks
 
 
+# ── BM25 scoring ──────────────────────────────────────────────────────────────
+def _bm25_scores(query_tokens: list[str]) -> list[float]:
+    """Return a BM25 score for each chunk in _chunks."""
+    if not _chunks:
+        return []
+
+    N      = len(_chunks)
+    avgdl  = sum(len(c["tokens"]) for c in _chunks) / N
+
+    # Document frequency per term
+    df: dict[str, int] = Counter()
+    for chunk in _chunks:
+        for term in set(chunk["tokens"]):
+            df[term] += 1
+
+    scores = []
+    for chunk in _chunks:
+        tf_map = Counter(chunk["tokens"])
+        dl     = len(chunk["tokens"])
+        score  = 0.0
+        for term in query_tokens:
+            if term not in tf_map:
+                continue
+            tf  = tf_map[term]
+            idf = math.log((N - df[term] + 0.5) / (df[term] + 0.5) + 1)
+            tf_norm = (tf * (_BM25_K1 + 1)) / (
+                tf + _BM25_K1 * (1 - _BM25_B + _BM25_B * dl / avgdl)
+            )
+            score += idf * tf_norm
+        scores.append(score)
+
+    return scores
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
+@traceable(name="rag.ingest_documents")
 def ingest_documents(force_rebuild: bool = False) -> int:
     """
-    Read all .txt files from docs/, chunk, embed, and store in ChromaDB.
-    Skips ingestion if the collection already has documents (unless force_rebuild=True).
-    Returns the number of chunks stored.
+    Read all .txt files from docs/, chunk and index them in memory.
+    Skips ingestion if already loaded (unless force_rebuild=True).
+    Returns the number of chunks indexed.
     """
-    collection = _get_collection()
+    global _chunks
 
-    if collection.count() > 0 and not force_rebuild:
-        return collection.count()
-
-    if force_rebuild and collection.count() > 0:
-        collection.delete(where={"source": {"$ne": "__nonexistent__"}})
+    if _chunks and not force_rebuild:
+        return len(_chunks)
 
     doc_files = list(_DOCS_DIR.glob("*.txt"))
     if not doc_files:
         raise FileNotFoundError(f"No .txt documents found in {_DOCS_DIR}")
 
-    all_chunks: list[dict] = []
+    _chunks = []
     for doc_path in doc_files:
         source = doc_path.stem
-        text = doc_path.read_text(encoding="utf-8")
-        all_chunks.extend(_chunk_text(text, source))
+        text   = doc_path.read_text(encoding="utf-8")
+        _chunks.extend(_chunk_text(text, source))
 
-    model = _get_embed_model()
-    texts = [c["text"] for c in all_chunks]
-    embeddings = model.encode(texts, show_progress_bar=True).tolist()
-
-    collection.add(
-        ids=[c["id"] for c in all_chunks],
-        documents=texts,
-        embeddings=embeddings,
-        metadatas=[{"source": c["source"]} for c in all_chunks],
-    )
-    return len(all_chunks)
+    return len(_chunks)
 
 
+@traceable(name="rag.retrieve")
 def retrieve(query: str, top_k: int = _TOP_K) -> list[dict]:
     """
-    Retrieve the most relevant document chunks for a query.
-    Returns a list of dicts: {text, source, distance}.
-    Only returns chunks with distance <= _DISTANCE_THRESHOLD.
+    Retrieve the most relevant document chunks for a query using BM25.
+    Returns a list of dicts: {text, source, score}.
+    Only returns chunks with score >= _SCORE_THRESHOLD.
     Returns an empty list if nothing relevant is found.
     """
-    collection = _get_collection()
-
-    if collection.count() == 0:
+    if not _chunks:
         return []
 
-    model = _get_embed_model()
-    query_embedding = model.encode(query).tolist()
+    query_tokens = _tokenize(query)
+    if not query_tokens:
+        return []
 
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=min(top_k, collection.count()),
-        include=["documents", "metadatas", "distances"],
-    )
+    scores  = _bm25_scores(query_tokens)
+    ranked  = sorted(zip(scores, _chunks), key=lambda x: x[0], reverse=True)
+    results = []
 
-    chunks = []
-    for doc, meta, dist in zip(
-        results["documents"][0],
-        results["metadatas"][0],
-        results["distances"][0],
-    ):
-        if dist <= _DISTANCE_THRESHOLD:
-            chunks.append({
-                "text": doc,
-                "source": meta.get("source", "unknown"),
-                "distance": round(dist, 4),
+    for score, chunk in ranked[:top_k]:
+        if score >= _SCORE_THRESHOLD:
+            results.append({
+                "text":   chunk["text"],
+                "source": chunk["source"],
+                "score":  round(score, 4),
             })
 
-    return chunks
+    return results
 
 
+@traceable(name="rag.format_context")
 def format_context(chunks: list[dict]) -> str:
     """Format retrieved chunks into a readable context string."""
     if not chunks:

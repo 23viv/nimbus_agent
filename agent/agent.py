@@ -37,8 +37,8 @@ from agent.tools import build_langchain_tools
 # ── Configuration ──────────────────────────────────────────────────────────────
 load_dotenv()
 
-MODEL = "anthropic/claude-sonnet-4-5"
-MAX_TOKENS = 2048
+MODEL = "google/gemma-4-26b-a4b-it:free"
+MAX_TOKENS = 400
 
 # ── System prompt (inlined — prompts.py removed) ───────────────────────────────
 SYSTEM_PROMPT = """You are the Nimbus Support AI, a helpful customer support assistant for Nimbus, a home goods e-commerce company.
