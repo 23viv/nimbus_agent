@@ -9,7 +9,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from langsmith import traceable
+from langfuse import observe
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 _DOCS_DIR        = Path(__file__).parent.parent / "docs"
@@ -105,7 +105,7 @@ def _bm25_scores(query_tokens: list[str]) -> list[float]:
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
-@traceable(name="rag.ingest_documents")
+@observe(name="rag.ingest_documents")
 def ingest_documents(force_rebuild: bool = False) -> int:
     """
     Read all .txt files from docs/, chunk and index them in memory.
@@ -130,7 +130,7 @@ def ingest_documents(force_rebuild: bool = False) -> int:
     return len(_chunks)
 
 
-@traceable(name="rag.retrieve")
+@observe(name="rag.retrieve")
 def retrieve(query: str, top_k: int = _TOP_K) -> list[dict]:
     """
     Retrieve the most relevant document chunks for a query using BM25.
@@ -160,7 +160,7 @@ def retrieve(query: str, top_k: int = _TOP_K) -> list[dict]:
     return results
 
 
-@traceable(name="rag.format_context")
+@observe(name="rag.format_context")
 def format_context(chunks: list[dict]) -> str:
     """Format retrieved chunks into a readable context string."""
     if not chunks:

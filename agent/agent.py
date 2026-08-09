@@ -6,10 +6,10 @@ Graph structure:
     START → agent ──(has tool calls)──► tools → agent (loop)
                   ──(no tool calls)──► END
 
-LangSmith tracing:
-  - @traceable decorates key functions with named spans
-  - The graph itself is traced automatically by LangGraph when
-    LANGCHAIN_TRACING_V2=true is set in your .env
+Langfuse tracing:
+  - @observe decorates key functions with named spans
+  - langfuse.langchain.CallbackHandler is passed into graph.ainvoke so that
+    LangGraph node spans are nested inside the top-level Langfuse trace
 """
 
 import asyncio
@@ -25,12 +25,14 @@ from langchain_openrouter import ChatOpenRouter
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-from langsmith import traceable
+from langfuse import observe
+from langfuse.langchain import CallbackHandler
 from typing_extensions import TypedDict
 
 # ── project imports ────────────────────────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from agent import rag
+from agent.guardrails import input_guardrails, output_guardrails
 from agent.mcp_client import NimbusMCPClient
 from agent.tools import build_langchain_tools
 
@@ -127,12 +129,13 @@ def build_graph(chat_model: Runnable, langchain_tools: list) -> Runnable:
     model_with_tools = chat_model.bind_tools(langchain_tools)
 
     # ── nodes ──────────────────────────────────────────────────────────────────
-    @traceable(name="agent_node")
+    @observe(name="agent_node")
     def agent_node(state: State) -> dict:
         """
         Call the LLM with the system prompt prepended to the current history.
-        @traceable creates a named LangSmith span for this LLM call, separate
-        from the graph-level span, so you can inspect the exact messages sent.
+        @observe creates a named Langfuse span for this LLM call, nested
+        inside the parent run_agent_turn trace, so you can inspect the exact
+        messages sent in the Langfuse UI.
         """
         messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
         response = model_with_tools.invoke(messages)
@@ -158,7 +161,7 @@ def build_graph(chat_model: Runnable, langchain_tools: list) -> Runnable:
 
 
 # ── Agent turn ─────────────────────────────────────────────────────────────────
-@traceable(name="run_agent_turn")
+@observe(name="run_agent_turn")
 async def run_agent_turn(
     user_message: str,
     conversation_history: list,
@@ -166,17 +169,43 @@ async def run_agent_turn(
 ) -> str:
     """
     Top-level entry point for one user turn.
-    @traceable wraps the entire turn — including all graph steps and tool calls —
-    as a single named span in LangSmith, making it easy to trace across turns.
+    @observe wraps the entire turn — including all graph steps and tool calls —
+    as a single named trace in Langfuse, making it easy to trace across turns.
+
+    A langfuse.langchain.CallbackHandler is created here and passed into the
+    graph invocation so that every LangGraph node span is nested inside this
+    Langfuse trace automatically.
     """
     conversation_history.append(HumanMessage(content=user_message))
 
-    result = await graph.ainvoke({"messages": conversation_history})
+    # ── Input guardrails ───────────────────────────────────────────────────────
+    in_result = input_guardrails(user_message)
+    if in_result.blocked:
+        return in_result.sanitized_text
+    # Use the sanitised message (PII scrubbed) as the actual input
+    effective_message = in_result.sanitized_text or user_message
+    conversation_history[-1] = HumanMessage(content=effective_message)
+
+    # Build a per-turn Langfuse callback handler so LangGraph node spans
+    # (agent node, tool node) are captured as children of this trace.
+    langfuse_handler = CallbackHandler()
+
+    result = await graph.ainvoke(
+        {"messages": conversation_history},
+        config={"callbacks": [langfuse_handler]},
+    )
+
+    # Flush to ensure spans are sent before the function returns.
+    langfuse_handler.flush()
 
     conversation_history.clear()
     conversation_history.extend(result["messages"])
 
-    return result["messages"][-1].content or ""
+    raw_response = result["messages"][-1].content or ""
+
+    # ── Output guardrails ──────────────────────────────────────────────────────
+    out_result = output_guardrails(raw_response)
+    return out_result.sanitized_text
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────

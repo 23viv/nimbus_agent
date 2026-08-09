@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from langchain_core.tools import StructuredTool
-from langsmith import traceable
+from langfuse import observe
 from pydantic import BaseModel, create_model
 
 from agent import rag
@@ -38,7 +38,7 @@ class _SearchInput(BaseModel):
     query: str
 
 
-@traceable(name="search_knowledge_base")
+@observe(name="search_knowledge_base")
 def _search_knowledge_base(query: str) -> str:
     chunks = rag.retrieve(query)
     if not chunks:

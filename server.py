@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from agent import rag
 from agent.agent import build_graph, run_agent_turn
+from agent.guardrails import input_guardrails, reset_repetition_tracker
 from agent.tools import build_langchain_tools
 
 load_dotenv()
@@ -137,6 +138,14 @@ async def chat(req: ChatRequest):
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
+    # ── Input guardrails (fast, synchronous — runs before the LLM) ────────────────
+    guard = input_guardrails(req.message)
+    if guard.blocked:
+        raise HTTPException(
+            status_code=400,
+            detail={"blocked": True, "reason": guard.rule_triggered, "message": guard.sanitized_text},
+        )
+
     reply = await run_agent_turn(
         user_message=req.message,
         conversation_history=_conversation_history,
@@ -148,6 +157,7 @@ async def chat(req: ChatRequest):
 @app.post("/reset")
 async def reset():
     _conversation_history.clear()
+    reset_repetition_tracker()   # also clear the guardrail repetition buffer
     return {"status": "conversation reset"}
 
 
