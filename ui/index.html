@@ -28,7 +28,81 @@
     html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--text); }
 
     /* ── layout ── */
-    body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    body { display: flex; flex-direction: row; height: 100vh; overflow: hidden; }
+
+    /* ── sidebar ── */
+    .sidebar {
+      width: 260px;
+      background: #0d1220;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .btn-new-chat {
+      width: 100%;
+      background: var(--user-grad);
+      border: none;
+      color: #0b0f1a;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font);
+      padding: 10px 16px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity 0.2s;
+    }
+    .btn-new-chat:hover { opacity: 0.9; }
+    .session-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .session-list::-webkit-scrollbar { width: 4px; }
+    .session-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .session-item {
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .session-item:hover {
+      background: var(--glass);
+      color: var(--text);
+    }
+    .session-item.active {
+      background: rgba(0, 212, 170, 0.12);
+      color: var(--teal);
+      border: 1px solid var(--teal-glow);
+    }
+
+    /* ── main container ── */
+    .main-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
 
     /* ── navbar ── */
     .navbar {
@@ -99,207 +173,273 @@
       display: grid; place-items: center; font-size: 14px;
       flex-shrink: 0;
     }
-    .avatar.ai   { background: linear-gradient(135deg,#1e293b,#0f172a); border: 1px solid var(--border); }
-    .avatar.user { background: var(--user-grad); }
+    .avatar.ai   { background: rgba(0,212,170,0.15); border: 1px solid var(--teal-glow); }
+    .avatar.user { background: var(--user-grad); color: #fff; }
 
     /* bubble */
     .bubble {
-      max-width: min(68%, 640px);
-      padding: 14px 18px;
+      max-width: 680px; padding: 14px 18px;
       border-radius: var(--radius);
-      font-size: 14px; line-height: 1.65;
+      font-size: 14px; line-height: 1.6;
+      word-break: break-word;
       position: relative;
     }
-    .bubble.ai {
-      background: var(--glass);
-      border: 1px solid var(--border);
-      backdrop-filter: blur(8px);
-      border-bottom-left-radius: 4px;
-    }
     .bubble.user {
-      background: var(--user-grad);
-      color: #fff;
-      border-bottom-right-radius: 4px;
+      background: var(--user-grad); color: #0b0f1a;
+      border-bottom-right-radius: 4px; font-weight: 500;
     }
-    .bubble .ts {
-      display: block; font-size: 10px;
-      margin-top: 8px; opacity: .45;
-      text-align: right;
+    .bubble.ai {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); border-bottom-left-radius: 4px;
     }
-    .bubble.ai .ts { text-align: left; }
+    .bubble ul { margin-left: 18px; margin-top: 6px; }
+    .bubble code {
+      background: rgba(255,255,255,0.08); padding: 2px 6px;
+      border-radius: 4px; font-size: 13px; font-family: monospace;
+    }
 
-    /* markdown-ish styling inside AI bubbles */
-    .bubble.ai strong { color: var(--teal); font-weight: 600; }
-    .bubble.ai code {
-      background: rgba(0,212,170,.1); border-radius: 4px;
-      padding: 1px 5px; font-size: 12px; font-family: monospace;
+    .ts {
+      display: block; font-size: 10px; color: var(--muted);
+      margin-top: 6px; text-align: right;
     }
-    .bubble.ai ul { padding-left: 18px; margin-top: 6px; }
-    .bubble.ai li { margin-top: 4px; }
+    .bubble.user .ts { color: rgba(11,15,26,0.5); }
 
     /* typing indicator */
-    .typing { display: flex; align-items: center; gap: 5px; padding: 14px 18px; }
+    .typing { display: flex; align-items: center; gap: 4px; padding: 16px 20px; }
     .typing span {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: var(--teal); opacity: .6;
-      animation: blink 1.2s infinite;
+      width: 6px; height: 6px; border-radius: 50%; background: var(--teal);
+      animation: bounce 1.2s infinite;
     }
     .typing span:nth-child(2) { animation-delay: .2s; }
     .typing span:nth-child(3) { animation-delay: .4s; }
-    @keyframes blink {
-      0%,80%,100% { transform: scale(.8); opacity:.4; }
-      40%         { transform: scale(1.2); opacity:1; }
+    @keyframes bounce {
+      0%,80%,100% { transform: translateY(0); }
+      40%         { transform: translateY(-6px); }
     }
 
     /* welcome card */
     .welcome {
-      margin: auto 24px;
-      background: var(--glass);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 36px 32px;
-      text-align: center;
-      animation: fadeUp .5s ease both;
+      margin: auto; max-width: 520px; text-align: center;
+      padding: 32px 24px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: var(--radius);
     }
-    .welcome .icon { font-size: 48px; margin-bottom: 12px; }
-    .welcome h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-    .welcome p  { font-size: 14px; color: var(--muted); line-height: 1.6; max-width: 380px; margin: 0 auto 24px; }
+    .welcome .icon { font-size: 40px; margin-bottom: 12px; }
+    .welcome h1    { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+    .welcome p     { font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 20px; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
     .chip {
-      background: rgba(0,212,170,.08);
-      border: 1px solid rgba(0,212,170,.25);
-      color: var(--teal); font-size: 12px; font-family: var(--font);
-      padding: 7px 14px; border-radius: 20px;
-      cursor: pointer; transition: all .2s;
+      background: var(--glass); border: 1px solid var(--border);
+      color: var(--text); font-size: 12px; padding: 8px 14px;
+      border-radius: 20px; cursor: pointer; transition: all .2s;
+      font-family: var(--font);
     }
-    .chip:hover { background: rgba(0,212,170,.18); transform: translateY(-1px); }
+    .chip:hover { border-color: var(--teal); color: var(--teal); background: var(--teal-glow); }
 
-    /* ── input bar ── */
+    /* ── input box ── */
     .input-bar {
-      flex-shrink: 0;
-      padding: 16px 24px 20px;
-      background: rgba(11,15,26,.95);
+      flex-shrink: 0; padding: 16px 24px 24px;
+      background: rgba(11,15,26,0.95);
       border-top: 1px solid var(--border);
-      backdrop-filter: blur(12px);
     }
-    .input-wrap {
+    .input-wrapper {
       display: flex; align-items: flex-end; gap: 10px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 10px 10px 10px 16px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 14px;
       transition: border-color .2s, box-shadow .2s;
     }
-    .input-wrap:focus-within {
+    .input-wrapper:focus-within {
       border-color: var(--teal);
       box-shadow: 0 0 0 3px var(--teal-glow);
     }
-    #userInput {
+    textarea {
       flex: 1; background: transparent; border: none; outline: none;
       color: var(--text); font-size: 14px; font-family: var(--font);
-      resize: none; max-height: 120px; line-height: 1.5;
-      overflow-y: auto;
+      resize: none; max-height: 140px; min-height: 24px; line-height: 1.5;
     }
-    #userInput::placeholder { color: var(--muted); }
-    #sendBtn {
-      width: 38px; height: 38px; flex-shrink: 0;
-      background: var(--user-grad);
-      border: none; border-radius: 10px;
-      cursor: pointer; display: grid; place-items: center;
-      transition: opacity .2s, transform .15s, box-shadow .2s;
-      box-shadow: 0 0 0 0 var(--teal-glow);
+    textarea::placeholder { color: var(--muted); }
+    .btn-send {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--user-grad); border: none; color: #0b0f1a;
+      font-size: 16px; cursor: pointer; display: grid; place-items: center;
+      flex-shrink: 0; transition: opacity .2s, transform .1s;
     }
-    #sendBtn:hover:not(:disabled) {
-      transform: scale(1.05);
-      box-shadow: 0 0 16px var(--teal-glow);
-    }
-    #sendBtn:disabled { opacity: .4; cursor: not-allowed; }
-    #sendBtn svg { width: 16px; height: 16px; fill: #fff; }
-    .hint { font-size: 11px; color: var(--muted); text-align: center; margin-top: 8px; }
+    .btn-send:hover   { opacity: .9; }
+    .btn-send:active  { transform: scale(.95); }
+    .btn-send:disabled { opacity: .4; cursor: not-allowed; }
   </style>
 </head>
 <body>
 
-<!-- ── Navbar ── -->
-<nav class="navbar">
-  <div class="navbar-logo">🌥️</div>
-  <div>
-    <div class="navbar-title">Nimbus Support AI</div>
-    <div class="navbar-sub">Powered by LangGraph · Claude</div>
-  </div>
-  <div class="status-dot" id="statusDot" title="Online"></div>
-  <button class="btn-reset" id="resetBtn" title="Clear conversation">↺ New chat</button>
-</nav>
-
-<!-- ── Chat window ── -->
-<div id="chat">
-  <div class="welcome" id="welcome">
-    <div class="icon">🌥️</div>
-    <h1>Hi, I'm Nimbus Support AI</h1>
-    <p>I can help with shipping, returns, product care, and your account. What can I help you with today?</p>
-    <div class="chips">
-      <button class="chip" onclick="sendChip(this)">📦 Where's my order?</button>
-      <button class="chip" onclick="sendChip(this)">↩️ How do I return an item?</button>
-      <button class="chip" onclick="sendChip(this)">🚚 Shipping policy</button>
-      <button class="chip" onclick="sendChip(this)">👤 Check my account</button>
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <button class="btn-new-chat" onclick="createNewSession()">
+        <span>✨</span> New Chat
+      </button>
+    </div>
+    <div class="session-list" id="session-list">
+      <!-- Loaded dynamically -->
     </div>
   </div>
-</div>
 
-<!-- ── Input bar ── -->
-<div class="input-bar">
-  <div class="input-wrap">
-    <textarea id="userInput" rows="1" placeholder="Ask me anything about Nimbus…"></textarea>
-    <button id="sendBtn" title="Send message" aria-label="Send">
-      <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-    </button>
+  <!-- Main Chat Container -->
+  <div class="main-container">
+    <!-- Navbar -->
+    <div class="navbar">
+      <div class="navbar-logo">🌥️</div>
+      <div>
+        <div class="navbar-title">Nimbus Support AI</div>
+        <div class="navbar-sub">Always online · MongoDB Atlas Session Tracking</div>
+      </div>
+      <div class="status-dot" id="status-dot" title="Checking…"></div>
+      <button class="btn-reset" onclick="resetCurrentSession()">Reset</button>
+    </div>
+
+    <!-- Chat messages -->
+    <div id="chat">
+      <div class="welcome" id="welcome">
+        <div class="icon">🌥️</div>
+        <h1>Hi, I'm Nimbus Support AI</h1>
+        <p>I can help with shipping, returns, product care, and your account. What can I help you with today?</p>
+        <div class="chips">
+          <button class="chip" onclick="sendChip(this)">📦 Where's my order?</button>
+          <button class="chip" onclick="sendChip(this)">↩️ How do I return an item?</button>
+          <button class="chip" onclick="sendChip(this)">🚚 Shipping policy</button>
+          <button class="chip" onclick="sendChip(this)">👤 Check my account</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input bar -->
+    <div class="input-bar">
+      <div class="input-wrapper">
+        <textarea id="input" placeholder="Ask Nimbus Support anything…" rows="1"></textarea>
+        <button class="btn-send" id="btn-send" onclick="send()">➔</button>
+      </div>
+    </div>
   </div>
-  <div class="hint">Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line</div>
-</div>
 
 <script>
-  const chat      = document.getElementById('chat');
-  const input     = document.getElementById('userInput');
-  const sendBtn   = document.getElementById('sendBtn');
-  const resetBtn  = document.getElementById('resetBtn');
-  const welcome   = document.getElementById('welcome');
-  const statusDot = document.getElementById('statusDot');
+  const chat       = document.getElementById('chat');
+  const input      = document.getElementById('input');
+  const sendBtn    = document.getElementById('btn-send');
+  const statusDot  = document.getElementById('status-dot');
+  const sessionListEl = document.getElementById('session-list');
 
   let busy = false;
+  let currentSessionId = localStorage.getItem('nimbus_session_id') || generateUUID();
+  localStorage.setItem('nimbus_session_id', currentSessionId);
 
-  // ── auto-grow textarea ─────────────────────────────────────────────────────
+  function generateUUID() {
+    return 'session-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString(36);
+  }
+
+  // ── auto-resize textarea ──
   input.addEventListener('input', () => {
     input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+    input.style.height = Math.min(input.scrollHeight, 140) + 'px';
   });
 
-  // ── keyboard submit ────────────────────────────────────────────────────────
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
   });
-  sendBtn.addEventListener('click', send);
-  resetBtn.addEventListener('click', reset);
 
-  // ── chip shortcuts ─────────────────────────────────────────────────────────
-  function sendChip(el) {
-    input.value = el.textContent.replace(/^[^\w]+/, '').trim();
+  function sendChip(btn) {
+    input.value = btn.textContent.replace(/^[\u1F00-\u1F9FF\u2600-\u26FF\u2700-\u27BF\s]+/, '').trim();
     send();
   }
 
-  // ── helpers ────────────────────────────────────────────────────────────────
   function now() {
-    return new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
   function scrollBottom() {
-    chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
+    chat.scrollTop = chat.scrollHeight;
   }
 
-  function addMsg(text, role) {
-    welcome?.remove();
+  function renderWelcome() {
+    chat.innerHTML = `
+      <div class="welcome" id="welcome">
+        <div class="icon">🌥️</div>
+        <h1>Hi, I'm Nimbus Support AI</h1>
+        <p>I can help with shipping, returns, product care, and your account. What can I help you with today?</p>
+        <div class="chips">
+          <button class="chip" onclick="sendChip(this)">📦 Where's my order?</button>
+          <button class="chip" onclick="sendChip(this)">↩️ How do I return an item?</button>
+          <button class="chip" onclick="sendChip(this)">🚚 Shipping policy</button>
+          <button class="chip" onclick="sendChip(this)">👤 Check my account</button>
+        </div>
+      </div>`;
+  }
+
+  // ── Session Management ─────────────────────────────────────────────────────
+  async function loadSessionsList() {
+    try {
+      const res = await fetch('/sessions');
+      if (!res.ok) return;
+      const data = await res.json();
+      sessionListEl.innerHTML = '';
+
+      if (!data.sessions || data.sessions.length === 0) {
+        sessionListEl.innerHTML = '<div style="padding:12px; font-size:11px; color:var(--muted); text-align:center;">No past chats</div>';
+        return;
+      }
+
+      data.sessions.forEach(s => {
+        const item = document.createElement('div');
+        item.className = `session-item ${s.session_id === currentSessionId ? 'active' : ''}`;
+        item.title = s.session_id;
+        item.innerHTML = `💬 <span>${escHtml(s.preview || s.session_id)}</span>`;
+        item.onclick = () => switchSession(s.session_id);
+        sessionListEl.appendChild(item);
+      });
+    } catch (e) {
+      console.error('Failed to load sessions', e);
+    }
+  }
+
+  async function switchSession(sid) {
+    if (busy) return;
+    currentSessionId = sid;
+    localStorage.setItem('nimbus_session_id', sid);
+    loadSessionsList();
+
+    chat.innerHTML = '';
+    try {
+      const res = await fetch(`/sessions/${sid}/messages`);
+      const data = await res.json();
+      if (!data.messages || data.messages.length === 0) {
+        renderWelcome();
+      } else {
+        data.messages.forEach(m => {
+          addMsg(m.content, m.role === 'user' ? 'user' : 'ai', false);
+        });
+      }
+    } catch (e) {
+      renderWelcome();
+    }
+  }
+
+  function createNewSession() {
+    if (busy) return;
+    currentSessionId = generateUUID();
+    localStorage.setItem('nimbus_session_id', currentSessionId);
+    renderWelcome();
+    loadSessionsList();
+    input.focus();
+  }
+
+  // ── render message ─────────────────────────────────────────────────────────
+  function addMsg(text, role, animate = true) {
+    const welcome = document.getElementById('welcome');
+    if (welcome) welcome.remove();
 
     const row = document.createElement('div');
     row.className = `msg-row ${role}`;
+    if (!animate) row.style.animation = 'none';
 
     const av = document.createElement('div');
     av.className = `avatar ${role}`;
@@ -313,23 +453,15 @@
     row.append(av, bub);
     chat.appendChild(row);
     scrollBottom();
-    return row;
   }
 
   function showTyping() {
     const row = document.createElement('div');
     row.className = 'msg-row ai';
     row.id = 'typing-row';
-
-    const av = document.createElement('div');
-    av.className = 'avatar ai';
-    av.textContent = '🌥️';
-
-    const bub = document.createElement('div');
-    bub.className = 'bubble ai typing';
-    bub.innerHTML = '<span></span><span></span><span></span>';
-
-    row.append(av, bub);
+    row.innerHTML = `
+      <div class="avatar ai">🌥️</div>
+      <div class="bubble ai typing"><span></span><span></span><span></span></div>`;
     chat.appendChild(row);
     scrollBottom();
   }
@@ -342,7 +474,7 @@
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  // Very minimal markdown → html
+  // Minimal markdown → html
   function renderMarkdown(text) {
     return escHtml(text)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -352,7 +484,7 @@
       .replace(/\n/g, '<br>');
   }
 
-  // ── send ───────────────────────────────────────────────────────────────────
+  // ── send message ───────────────────────────────────────────────────────────
   async function send() {
     const text = input.value.trim();
     if (!text || busy) return;
@@ -369,7 +501,7 @@
       const res = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, session_id: currentSessionId }),
       });
 
       hideTyping();
@@ -379,7 +511,12 @@
         addMsg(`⚠️ Error: ${err.detail || res.statusText}`, 'ai');
       } else {
         const data = await res.json();
+        if (data.session_id) {
+          currentSessionId = data.session_id;
+          localStorage.setItem('nimbus_session_id', currentSessionId);
+        }
         addMsg(data.reply, 'ai');
+        loadSessionsList();
       }
     } catch (err) {
       hideTyping();
@@ -391,24 +528,16 @@
     }
   }
 
-  // ── reset ──────────────────────────────────────────────────────────────────
-  async function reset() {
-    await fetch('/reset', { method: 'POST' }).catch(() => {});
-    chat.innerHTML = '';
-    // re-add welcome card
-    const w = document.createElement('div');
-    w.className = 'welcome'; w.id = 'welcome';
-    w.innerHTML = `
-      <div class="icon">🌥️</div>
-      <h1>Hi, I'm Nimbus Support AI</h1>
-      <p>I can help with shipping, returns, product care, and your account. What can I help you with today?</p>
-      <div class="chips">
-        <button class="chip" onclick="sendChip(this)">📦 Where's my order?</button>
-        <button class="chip" onclick="sendChip(this)">↩️ How do I return an item?</button>
-        <button class="chip" onclick="sendChip(this)">🚚 Shipping policy</button>
-        <button class="chip" onclick="sendChip(this)">👤 Check my account</button>
-      </div>`;
-    chat.appendChild(w);
+  // ── reset session ──────────────────────────────────────────────────────────
+  async function resetCurrentSession() {
+    await fetch('/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: currentSessionId }),
+    }).catch(() => {});
+
+    renderWelcome();
+    loadSessionsList();
     input.focus();
   }
 

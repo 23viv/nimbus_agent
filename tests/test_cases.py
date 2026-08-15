@@ -24,10 +24,9 @@ load_dotenv()
 from langchain_openrouter import ChatOpenRouter
 
 from agent import rag
-from agent.agent import MODEL, MAX_TOKENS, build_graph, run_agent_turn
+from agent.agent import MODEL, MAX_TOKENS, SYSTEM_PROMPT, build_graph, run_agent_turn
 from agent.tools import build_langchain_tools
 from agent.mcp_client import NimbusMCPClient
-from agent.prompts import SYSTEM_PROMPT
 
 
 # ── Test case schema ───────────────────────────────────────────────────────────
@@ -260,12 +259,12 @@ async def main():
             except Exception as e:
                 passed, response, reason = False, "", f"Exception: {e}"
 
-            status = "✅ PASS" if passed else "❌ FAIL"
-            desc_truncated = tc.description[:43] + ("…" if len(tc.description) > 43 else "")
+            status = "[PASS]" if passed else "[FAIL]"
+            desc_truncated = tc.description[:43] + ("..." if len(tc.description) > 43 else "")
             print(f"{tc.id:<14} {tc.category:<14} {desc_truncated:<45} {status}")
             if not passed:
-                print(f"  ↳ Reason: {reason}")
-                print(f"  ↳ Response snippet: {response[:200]!r}")
+                print(f"  -> Reason: {reason}")
+                print(f"  -> Response snippet: {response[:200]!r}")
 
             results.append((tc, passed, response, reason))
 
@@ -277,9 +276,9 @@ async def main():
         print("=" * 95)
 
         if failed_count == 0:
-            print("  🎉 All test cases passed!")
+            print("  All test cases passed!")
         else:
-            print("  ⚠️  Some tests failed. Review the output above.")
+            print("  Some tests failed. Review the output above.")
 
         return failed_count == 0
 

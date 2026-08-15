@@ -36,14 +36,14 @@ def main():
 
     try:
         count = ingest_documents(force_rebuild=args.rebuild)
-        print(f"\n✅ Done! {count} chunks stored in vector store.")
+        print(f"\n[SUCCESS] Done! {count} chunks stored in vector store.")
         print("   Location: vector_store/")
     except FileNotFoundError as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\n[ERROR] Error: {e}")
         print("   Make sure docs/ contains .txt files.")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\n[ERROR] Unexpected error: {e}")
         sys.exit(1)
 
 

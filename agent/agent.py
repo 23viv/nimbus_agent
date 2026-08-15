@@ -25,7 +25,7 @@ from langchain_openrouter import ChatOpenRouter
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-from langfuse import observe
+from langfuse import observe, propagate_attributes
 from langfuse.langchain import CallbackHandler
 from typing_extensions import TypedDict
 
@@ -166,15 +166,16 @@ async def run_agent_turn(
     user_message: str,
     conversation_history: list,
     graph: Runnable,
+    session_id: str = "default_session",
 ) -> str:
     """
     Top-level entry point for one user turn.
     @observe wraps the entire turn — including all graph steps and tool calls —
     as a single named trace in Langfuse, making it easy to trace across turns.
 
-    A langfuse.langchain.CallbackHandler is created here and passed into the
-    graph invocation so that every LangGraph node span is nested inside this
-    Langfuse trace automatically.
+    A langfuse.langchain.CallbackHandler is created here with session_id tracking
+    and passed into the graph invocation so that every LangGraph node span is nested
+    inside this Langfuse trace automatically.
     """
     conversation_history.append(HumanMessage(content=user_message))
 
@@ -186,22 +187,25 @@ async def run_agent_turn(
     effective_message = in_result.sanitized_text or user_message
     conversation_history[-1] = HumanMessage(content=effective_message)
 
-    # Build a per-turn Langfuse callback handler so LangGraph node spans
-    # (agent node, tool node) are captured as children of this trace.
-    langfuse_handler = CallbackHandler()
+    # Build a per-turn Langfuse callback handler and propagate the session_id
+    # so ALL child observations (agent_node span, tool spans, LangChain callbacks)
+    # are automatically grouped under the same Langfuse session.
+    langfuse_handler = CallbackHandler(session_id=session_id)
+    with propagate_attributes(session_id=session_id):
+        result = await graph.ainvoke(
+            {"messages": conversation_history},
+            config={"callbacks": [langfuse_handler]},
+        )
 
-    result = await graph.ainvoke(
-        {"messages": conversation_history},
-        config={"callbacks": [langfuse_handler]},
-    )
-
-    # Flush to ensure spans are sent before the function returns.
-    langfuse_handler.flush()
+    # Flush to ensure spans are sent before the function returns
+    if hasattr(langfuse_handler, "flush"):
+        langfuse_handler.flush()
 
     conversation_history.clear()
     conversation_history.extend(result["messages"])
 
     raw_response = result["messages"][-1].content or ""
+
 
     # ── Output guardrails ──────────────────────────────────────────────────────
     out_result = output_guardrails(raw_response)
