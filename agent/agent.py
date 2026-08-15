@@ -40,7 +40,7 @@ from agent.tools import build_langchain_tools
 load_dotenv()
 
 MODEL = "google/gemma-4-26b-a4b-it:free"
-MAX_TOKENS = 400
+MAX_TOKENS = 1024 
 
 # ── System prompt (inlined — prompts.py removed) ───────────────────────────────
 SYSTEM_PROMPT = """You are the Nimbus Support AI, a helpful customer support assistant for Nimbus, a home goods e-commerce company.
@@ -190,7 +190,9 @@ async def run_agent_turn(
     # Build a per-turn Langfuse callback handler and propagate the session_id
     # so ALL child observations (agent_node span, tool spans, LangChain callbacks)
     # are automatically grouped under the same Langfuse session.
-    langfuse_handler = CallbackHandler(session_id=session_id)
+    # Note: CallbackHandler in langfuse 4.x does NOT accept session_id in the
+    # constructor — session grouping is handled entirely by propagate_attributes.
+    langfuse_handler = CallbackHandler()
     with propagate_attributes(session_id=session_id):
         result = await graph.ainvoke(
             {"messages": conversation_history},
@@ -216,7 +218,6 @@ async def run_agent_turn(
 def _print_banner():
     print("\n" + "=" * 62)
     print("  🌥️  NIMBUS SUPPORT AI")
-    print("  Powered by LangGraph StateGraph + OpenRouter")
     print("=" * 62)
     print("  Type your question and press Enter.")
     print("  Type 'quit' or press Ctrl+C to exit.")

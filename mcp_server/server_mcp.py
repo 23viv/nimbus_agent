@@ -1,6 +1,7 @@
 """
-Nimbus Support Agent — MCP Server
-Exposes user lookup tools via FastMCP over stdio transport.
+Nimbus Support Agent — MCP Server (standalone HTTP)
+Exposes user lookup tools via FastMCP over streamable-HTTP transport.
+Runs independently on port 8001. Start with: python mcp_server/server.py
 """
 
 import json
@@ -89,4 +90,6 @@ def get_user_account_status(user_id: str) -> dict:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    import os
+    port = int(os.getenv("MCP_SERVER_PORT", "8001"))
+    mcp.run(transport="http", host="127.0.0.1", port=port)

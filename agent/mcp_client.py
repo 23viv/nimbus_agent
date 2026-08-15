@@ -1,22 +1,29 @@
 """
-Nimbus Support Agent — MCP Client
-Async context manager that spawns the MCP server subprocess and
+Nimbus Support Agent — MCP Client (HTTP)
+Async context manager that connects to the standalone MCP HTTP server and
 exposes list_tools() / call_tool() for the agent loop.
+
+The MCP server must be running separately:
+    python mcp_server/server_mcp.py
+
+Set MCP_SERVER_URL in .env (defaults to http://127.0.0.1:8001/mcp).
 """
 
-import sys
-from pathlib import Path
+import os
 from typing import Any
 
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from dotenv import load_dotenv
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 
-_SERVER_SCRIPT = str(Path(__file__).parent.parent / "mcp_server" / "server.py")
+load_dotenv()
+
+_MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:8001/mcp")
 
 
 class NimbusMCPClient:
     """
-    Async context manager wrapping the Nimbus MCP server.
+    Async context manager wrapping the Nimbus MCP HTTP server.
 
     Usage:
         async with NimbusMCPClient() as client:
@@ -26,17 +33,12 @@ class NimbusMCPClient:
 
     def __init__(self):
         self._session: ClientSession | None = None
-        self._stdio_ctx = None
+        self._http_ctx = None
         self._session_ctx = None
 
     async def __aenter__(self) -> "NimbusMCPClient":
-        server_params = StdioServerParameters(
-            command=sys.executable,
-            args=[_SERVER_SCRIPT],
-            env=None,
-        )
-        self._stdio_ctx = stdio_client(server_params)
-        read, write = await self._stdio_ctx.__aenter__()
+        self._http_ctx = streamablehttp_client(_MCP_SERVER_URL)
+        read, write, _ = await self._http_ctx.__aenter__()
 
         self._session_ctx = ClientSession(read, write)
         self._session = await self._session_ctx.__aenter__()
@@ -47,8 +49,8 @@ class NimbusMCPClient:
     async def __aexit__(self, *args):
         if self._session_ctx:
             await self._session_ctx.__aexit__(*args)
-        if self._stdio_ctx:
-            await self._stdio_ctx.__aexit__(*args)
+        if self._http_ctx:
+            await self._http_ctx.__aexit__(*args)
 
     async def list_tools(self) -> list[dict]:
         """Return tool definitions as plain dicts (name, description, input_schema)."""

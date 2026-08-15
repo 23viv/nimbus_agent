@@ -2,10 +2,9 @@
 Nimbus Support Agent — FastAPI Web Server
 Exposes /chat, /reset, /health endpoints and serves the UI.
 
-MCP is started as a background asyncio task so the stdio_client context
-manager always lives in the same task that created it (avoids the anyio
-cancel-scope cross-task error). If MCP fails, the agent still works with
-just the RAG (search_knowledge_base) tool.
+The MCP server runs as a SEPARATE process on port 8001.
+Start it first:  python mcp_server/server_mcp.py
+Then start this: python server.py
 """
 
 import asyncio
@@ -39,10 +38,10 @@ _graph = None
 _mcp_ready = False
 
 
-async def _boot_mcp_and_build_graph():
+async def _connect_mcp_and_build_graph():
     """
-    Runs entirely inside one asyncio task so the anyio stdio_client context
-    manager is entered and exited in the same task.
+    Connect to the standalone MCP HTTP server and build the agent graph.
+    Falls back to RAG-only if the MCP server is not reachable.
     """
     global _graph, _mcp_ready
     from agent.mcp_client import NimbusMCPClient
@@ -61,10 +60,9 @@ async def _boot_mcp_and_build_graph():
             _mcp_ready = True
             _graph = build_graph(chat_model, langchain_tools)
             print(f"[startup] Agent graph compiled ({MODEL} with MCP).")
-            # Keep running until the server shuts down
-            await asyncio.get_event_loop().create_future()
     except Exception as exc:
         print(f"[startup] MCP unavailable ({exc}). Running RAG-only.")
+        print("[startup] Make sure the MCP server is running: python mcp_server/server.py")
         langchain_tools = build_langchain_tools([], _MockMCPClient())
         _graph = build_graph(chat_model, langchain_tools)
         print(f"[startup] Agent graph compiled ({MODEL} RAG-only).")
@@ -86,25 +84,14 @@ async def lifespan(app: FastAPI):
     count = rag.ingest_documents()
     print(f"[startup] Knowledge base ready — {count} chunks.")
 
-    # 3. Boot MCP + build graph in a dedicated background task
-    mcp_task = asyncio.create_task(_boot_mcp_and_build_graph())
-
-    # Wait up to 15 s for the graph to be ready
-    for _ in range(30):
-        if _graph is not None:
-            break
-        await asyncio.sleep(0.5)
+    # 3. Connect to the standalone MCP server and build the agent graph
+    await _connect_mcp_and_build_graph()
 
     if _graph is None:
-        print("[startup] WARNING: graph not ready after 15 s — continuing anyway.")
+        print("[startup] WARNING: graph not ready — continuing anyway.")
 
     yield  # ── server is live ──
 
-    mcp_task.cancel()
-    try:
-        await mcp_task
-    except (asyncio.CancelledError, Exception):
-        pass
     print("[shutdown] Done.")
 
 
@@ -194,6 +181,14 @@ async def get_session_history(session_id: str):
     """Retrieve all messages for a specific session_id."""
     messages = await db.get_session_messages(session_id)
     return {"session_id": session_id, "messages": messages}
+
+
+@app.delete("/sessions/{session_id}")
+async def delete_session(session_id: str):
+    """Permanently delete a session and all its messages."""
+    await db.clear_session(session_id)
+    reset_repetition_tracker()
+    return {"status": "deleted", "session_id": session_id}
 
 
 class ResetRequest(BaseModel):
