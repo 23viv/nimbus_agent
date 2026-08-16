@@ -1,9 +1,9 @@
 """
-Nimbus Support Agent — FastAPI Web Server
+Nimbus Furniture Support Agent — FastAPI Web Server
 Exposes /chat, /reset, /health endpoints and serves the UI.
 
-The MCP server runs as a SEPARATE process on port 8001.
-Start it first:  python mcp_server/server_mcp.py
+The MCP server is a SEPARATE service in nimbus_mcp/.
+Start locally:  cd ../nimbus_mcp && python server.py
 Then start this: python server.py
 """
 
@@ -62,7 +62,7 @@ async def _connect_mcp_and_build_graph():
             print(f"[startup] Agent graph compiled ({MODEL} with MCP).")
     except Exception as exc:
         print(f"[startup] MCP unavailable ({exc}). Running RAG-only.")
-        print("[startup] Make sure the MCP server is running: python mcp_server/server.py")
+        print("[startup] Make sure the MCP server is running: cd ../nimbus_mcp && python server.py")
         langchain_tools = build_langchain_tools([], _MockMCPClient())
         _graph = build_graph(chat_model, langchain_tools)
         print(f"[startup] Agent graph compiled ({MODEL} RAG-only).")

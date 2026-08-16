@@ -3,10 +3,13 @@ Nimbus Support Agent — MCP Client (HTTP)
 Async context manager that connects to the standalone MCP HTTP server and
 exposes list_tools() / call_tool() for the agent loop.
 
-The MCP server must be running separately:
-    python mcp_server/server_mcp.py
+The MCP server lives in the separate nimbus_mcp/ project.
+Run it locally with:  cd ../nimbus_mcp && python server.py
+On Render it is deployed as its own web service.
 
 Set MCP_SERVER_URL in .env (defaults to http://127.0.0.1:8001/mcp).
+On Render, set MCP_SERVER_URL to your nimbus_mcp Render URL, e.g.:
+  MCP_SERVER_URL=https://nimbus-mcp.onrender.com/mcp
 """
 
 import os

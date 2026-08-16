@@ -1,8 +1,10 @@
 # 🌥️ Nimbus Support Agent
 
-An AI-powered customer support chatbot for **Nimbus** (a fictional home-goods e-commerce company).
+An AI-powered customer support chatbot for **Nimbus** — a premium furniture e-commerce company.
 
-Built with a modern open-source stack — featuring **ChromaDB Vector RAG**, **MongoDB Atlas Session Storage**, **FastMCP Live Tools**, and **Langfuse Session Observability**.
+Built with a modern open-source stack featuring **ChromaDB Vector RAG**, **MongoDB Atlas Session Storage**, **FastMCP Live Tools**, and **Langfuse Session Observability**.
+
+> 🔗 This service depends on the **[nimbus_mcp](../nimbus_mcp/)** MCP server running separately. Start that first.
 
 ---
 
@@ -10,12 +12,12 @@ Built with a modern open-source stack — featuring **ChromaDB Vector RAG**, **M
 
 | Layer | Technology |
 |---|---|
-| **LLM** | [OpenRouter](https://openrouter.ai/) → `google/gemma-4-31b-it:free` |
+| **LLM** | [OpenRouter](https://openrouter.ai/) → `google/gemma-4-26b-a4b-it:free` |
 | **Orchestration** | [LangGraph](https://github.com/langchain-ai/langgraph) StateGraph |
 | **Vector DB (RAG)** | [ChromaDB](https://www.trychroma.com/) + [SentenceTransformers](https://sbert.net/) (`all-MiniLM-L6-v2`) |
 | **Session DB** | [MongoDB Atlas](https://www.mongodb.com/atlas) (`motor` async driver + `pymongo`) |
-| **Live Tools** | [FastMCP](https://github.com/jlowin/fastmcp) over stdio |
-| **Web Server** | [FastAPI](https://fastapi.tiangolo.com/) + ChatGPT-style glassmorphic UI |
+| **Live Tools** | [FastMCP](https://github.com/jlowin/fastmcp) over HTTP — served by `nimbus_mcp` |
+| **Web Server** | [FastAPI](https://fastapi.tiangolo.com/) + glassmorphic ChatGPT-style UI |
 | **Observability** | [Langfuse](https://langfuse.com/) (`@observe` + `CallbackHandler` with `session_id` tracking) |
 | **Guardrails** | Code-level safety layer (`agent/guardrails.py`) |
 
@@ -24,7 +26,7 @@ Built with a modern open-source stack — featuring **ChromaDB Vector RAG**, **M
 ## Architecture
 
 ```
-User (Browser ChatGPT UI / CLI)
+User (Browser UI / CLI)
         │
         ▼
 FastAPI /chat endpoint
@@ -32,18 +34,18 @@ FastAPI /chat endpoint
         ├──► Input Guardrails ──────────────────────────────────► block + HTTP 400
         │         (injection, PII, length, repetition)
         │
-        ├──► MongoDB Atlas (agent/db.py) ───────────────────────► Load session history & save messages
+        ├──► MongoDB Atlas (agent/db.py) ───────────────────────► load session history & save messages
         │
         ▼
 LangGraph StateGraph
         │
         ├──► agent node (Gemma via OpenRouter)
         │         │
-        │         ├──► search_knowledge_base ──► ChromaDB Vector Store ──► vector_store/
+        │         ├──► search_knowledge_base ──► ChromaDB (vector_store/) ──► docs/*.txt
         │         │
         │         └──► get_user_by_email / get_user_account_status
         │                       │
-        │                       └──► FastMCP server ──► data/users.json
+        │                       └──► nimbus_mcp HTTP server ──► data/users.json
         │
         └──► tools node (ToolNode)
         │
@@ -54,9 +56,8 @@ Output Guardrails ────────────────────�
 Response to user + MongoDB Atlas message persistence
         │
         ▼
-Langfuse Tracing: Spans grouped by session_id in Langfuse Dashboard
-Logging: every tool call → logs/tool_calls.jsonl
-         every guardrail violation → logs/guardrail_violations.jsonl
+Langfuse Tracing: spans grouped by session_id
+Logging:          tool_calls.jsonl  |  guardrail_violations.jsonl
 ```
 
 ---
@@ -64,38 +65,56 @@ Logging: every tool call → logs/tool_calls.jsonl
 ## Project Structure
 
 ```
-nimbus-support-agent/
-├── docs/                        # Company policy documents (RAG source)
-│   ├── return_policy.txt
-│   ├── shipping_policy.txt
-│   ├── product_care.txt
-│   └── faq.txt
-├── vector_store/                # Persistent ChromaDB vector database index
+nimbus_agent/
+├── docs/                          # RAG source documents (furniture company policies)
+│   ├── about_nimbus.txt           # Company overview — who Nimbus is, products, membership
+│   ├── faq.txt                    # Frequently asked questions
+│   ├── return_policy.txt          # Return & refund policy
+│   ├── shipping_policy.txt        # Shipping rates & timelines
+│   └── product_care.txt           # Furniture care & maintenance guide
+├── vector_store/                  # Persistent ChromaDB vector index (auto-generated)
 ├── data/
-│   └── users.json               # Mock user database (8 users)
-├── mcp_server/
-│   └── server.py                # FastMCP server (user lookup tools)
+│   └── users.json                 # Local user database (8 mock customers)
 ├── agent/
-│   ├── agent.py                 # LangGraph graph + CLI entry point
-│   ├── db.py                    # MongoDB Atlas async session manager
-│   ├── guardrails.py            # Input & output safety guardrails
-│   ├── rag.py                   # ChromaDB vector RAG pipeline (ingest + retrieve)
-│   ├── tools.py                 # LangChain StructuredTool wrappers
-│   └── mcp_client.py            # Async MCP stdio client
-├── server.py                    # FastAPI web server (/chat, /sessions, /reset, /health)
-├── ui/                          # ChatGPT-style web UI with session sidebar (served by FastAPI)
-│   └── index.html
+│   ├── agent.py                   # LangGraph graph + system prompt + CLI entry point
+│   ├── db.py                      # MongoDB Atlas async session manager
+│   ├── guardrails.py              # Input & output safety guardrails
+│   ├── rag.py                     # ChromaDB RAG pipeline (ingest + retrieve)
+│   ├── tools.py                   # LangChain StructuredTool wrappers for MCP tools
+│   └── mcp_client.py              # Async HTTP MCP client (connects to nimbus_mcp)
+├── server.py                      # FastAPI web server (/chat, /sessions, /reset, /health)
+├── ui/
+│   └── index.html                 # ChatGPT-style web UI with session sidebar
 ├── scripts/
-│   └── ingest.py                # Script to chunk & embed docs into ChromaDB (--rebuild)
+│   └── ingest.py                  # CLI script to chunk & embed docs into ChromaDB
 ├── logs/
-│   ├── tool_calls.jsonl         # Append-only tool call log
-│   └── guardrail_violations.jsonl  # Guardrail violation log
+│   ├── tool_calls.jsonl           # Append-only tool call log
+│   └── guardrail_violations.jsonl # Guardrail violation log
 ├── tests/
-│   └── test_cases.py            # Hand-built test suite
+│   └── test_cases.py              # Hand-built test suite
 ├── requirements.txt
-├── atlas-credentials.env        # MongoDB Atlas credentials
-├── .env                         # Environment variables (not committed)
+├── .env                           # Environment variables (never committed)
 └── README.md
+```
+
+---
+
+## RAG Knowledge Base
+
+The agent answers policy questions by searching **5 documents** embedded in ChromaDB:
+
+| Document | What it covers |
+|---|---|
+| `about_nimbus.txt` | Company overview, product categories, materials, sustainability, Premium membership |
+| `faq.txt` | Ordering, account, warranty, gift cards, promotions |
+| `return_policy.txt` | 30-day returns, eligibility, refund timeline, damaged items |
+| `shipping_policy.txt` | Rates, delivery windows, White Glove Delivery |
+| `product_care.txt` | Furniture care instructions by material |
+
+To rebuild the vector index after adding or editing documents:
+
+```bash
+python scripts/ingest.py --rebuild
 ```
 
 ---
@@ -105,9 +124,10 @@ nimbus-support-agent/
 ### 1. Prerequisites
 
 - Python 3.10+
-- An [OpenRouter](https://openrouter.ai/keys) API key
-- A [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster connection string
-- A [Langfuse](https://cloud.langfuse.com) account for tracing
+- [OpenRouter](https://openrouter.ai/keys) API key
+- [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster (free tier works)
+- [Langfuse](https://cloud.langfuse.com) account (optional — for observability)
+- **`nimbus_mcp` running** on `http://127.0.0.1:8001` (see [nimbus_mcp README](../nimbus_mcp/README.md))
 
 ### 2. Create a virtual environment
 
@@ -129,25 +149,29 @@ pip install -r requirements.txt
 
 ### 4. Configure environment variables
 
-Create or update `.env`:
+Create a `.env` file in this directory:
 
 ```env
-# Required — OpenRouter API key
+# Required — OpenRouter API key (get one at https://openrouter.ai/keys)
 OPENROUTER_API_KEY=sk-or-...
 
-# Required — MongoDB Atlas Connection
-MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.v3dfdhj.mongodb.net/?appName=Cluster0"
+# Required — MongoDB Atlas
+MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?appName=Cluster0"
 MONGODB_DB_NAME="nimbus_db"
 
-# Optional — enables Langfuse session observability
+# Required — URL of the running nimbus_mcp service
+# Local:  http://127.0.0.1:8001/mcp
+# Render: https://nimbus-mcp.onrender.com/mcp
+MCP_SERVER_URL=http://127.0.0.1:8001/mcp
+MCP_SERVER_PORT=8001
+
+# Optional — Langfuse observability (https://cloud.langfuse.com)
 LANGFUSE_PUBLIC_KEY=pk-lf-...
 LANGFUSE_SECRET_KEY=sk-lf-...
-LANGFUSE_HOST=https://cloud.langfuse.com
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
 ```
 
-### 5. Ingest Documents into ChromaDB Vector Store
-
-Build the persistent local vector store index:
+### 5. Ingest documents into ChromaDB
 
 ```bash
 python scripts/ingest.py --rebuild
@@ -155,44 +179,94 @@ python scripts/ingest.py --rebuild
 
 ---
 
-## Running
+## Running Locally
 
-### Web Server (Recommended)
+> ⚠️ Start the `nimbus_mcp` server first, then start this server.
 
 ```bash
+# Terminal 1 — MCP server (from nimbus_mcp/)
+cd ../nimbus_mcp
+python server.py
+
+# Terminal 2 — Agent + Web UI
 python server.py
 # or: uvicorn server:app --reload
 ```
 
-Open `http://127.0.0.1:8000` — the ChatGPT-style interface loads automatically with session sidebar.
-
-**API Endpoints:**
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/chat` | Send a message with `session_id`, get a reply & store turn in MongoDB Atlas |
-| `GET` | `/sessions` | List all past user chat sessions stored in MongoDB Atlas |
-| `GET` | `/sessions/{session_id}/messages` | Retrieve full message history for a specific session |
-| `POST` | `/reset` | Clear messages for a specific session |
-| `GET` | `/health` | Check server, ChromaDB, MCP, and MongoDB Atlas connection status |
+Open **`http://127.0.0.1:8000`** — the chat UI loads automatically.
 
 ---
 
-## Observability & Session Tracking
+## API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/chat` | Send a message; returns AI reply + `session_id` |
+| `GET` | `/sessions` | List all chat sessions stored in MongoDB Atlas |
+| `GET` | `/sessions/{session_id}/messages` | Full message history for a session |
+| `DELETE` | `/sessions/{session_id}` | Permanently delete a session |
+| `POST` | `/reset` | Clear messages for a session |
+| `GET` | `/health` | Returns server, ChromaDB, MCP, and MongoDB status |
+
+### Example `/chat` request
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is your return policy?", "session_id": "user-abc"}'
+```
+
+```json
+{
+  "reply": "According to our return policy, you may return most items within 30 days of delivery...",
+  "session_id": "user-abc"
+}
+```
+
+---
+
+## Observability
 
 Every agent turn is traced in **Langfuse** and grouped by `session_id`:
 
 ```
-run_agent_turn (session_id="session-123")  ← @observe trace tagged with session_id
+run_agent_turn (session_id="abc-123")
 ├── guardrails.input
-├── agent_node
-├── [LangGraph CallbackHandler spans]
-│   ├── ChatOpenRouter call
-│   └── ToolNode execution
+├── agent_node                    ← LLM call (Gemma via OpenRouter)
+│   └── [LangGraph CallbackHandler spans]
 ├── search_knowledge_base
-│   └── rag.retrieve (ChromaDB vector similarity search)
+│   └── rag.retrieve              ← ChromaDB vector similarity search
+├── get_user_by_email             ← MCP tool call → nimbus_mcp
 └── guardrails.output
 ```
+
+View full session traces in your [Langfuse dashboard](https://cloud.langfuse.com).
+
+---
+
+## Deploying to Render
+
+Deploy as a **Web Service** from your GitHub repo:
+
+| Setting | Value |
+|---|---|
+| **Root Directory** | `nimbus_agent` |
+| **Build Command** | `pip install -r requirements.txt` |
+| **Start Command** | `uvicorn server:app --host 0.0.0.0 --port $PORT` |
+
+**Environment variables to set in Render dashboard:**
+
+```
+OPENROUTER_API_KEY=sk-or-...
+MONGODB_URI=mongodb+srv://...
+MONGODB_DB_NAME=nimbus_db
+MCP_SERVER_URL=https://nimbus-mcp.onrender.com/mcp
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+```
+
+> ⚠️ Deploy `nimbus_mcp` **first** so its URL is available before the agent starts up.
 
 ---
 
@@ -206,14 +280,17 @@ python tests/test_cases.py
 
 ## Key Design Decisions
 
-### ChromaDB Vector Search over BM25
-The RAG pipeline uses **ChromaDB** with dense **SentenceTransformers** (`all-MiniLM-L6-v2`) embeddings stored on disk (`vector_store/`). Semantic similarity search matches questions based on *meaning* rather than exact keyword matches.
+### ChromaDB + SentenceTransformers for RAG
+Dense vector embeddings with cosine similarity match questions by *meaning* — so "can I send something back?" correctly retrieves the return policy even without exact keyword overlap.
 
-### MongoDB Atlas Session Persistence
-Session message history is stored in **MongoDB Atlas** using `motor` (AsyncIO MongoDB driver). Users can resume past chat sessions, switch conversations in the UI sidebar, and maintain context across browser restarts.
+### MongoDB Atlas for Session Persistence
+`motor` (AsyncIO driver) stores conversation turns per `session_id`, enabling multi-session support, sidebar history in the UI, and conversation continuity across browser restarts.
+
+### MCP for Live Data
+User account lookups are served by a **separate FastMCP service** (`nimbus_mcp`), keeping the agent stateless and the database layer independently deployable and scalable.
 
 ### Langfuse Session Observability
-`session_id` is passed into `run_agent_turn` and attached to Langfuse trace contexts (`CallbackHandler`), allowing full session-level trajectory inspection in the Langfuse dashboard.
+`session_id` is propagated into every Langfuse trace via `propagate_attributes`, so all turns of a conversation are grouped together in the Langfuse dashboard for easy debugging.
 
 ---
 
@@ -242,4 +319,3 @@ motor>=3.3.0
 ## License
 
 MIT — free to use, modify, and extend.
-
