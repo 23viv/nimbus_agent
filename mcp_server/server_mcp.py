@@ -1,5 +1,5 @@
 """
-Nimbus Support Agent — MCP Server (standalone HTTP)
+Nimbus Furniture Support Agent — MCP Server (standalone HTTP)
 Exposes user lookup tools via FastMCP over streamable-HTTP transport.
 Runs independently on port 8001. Start with: python mcp_server/server.py
 """
@@ -25,7 +25,7 @@ mcp = FastMCP("nimbus-user-db")
 @mcp.tool
 def get_user_by_email(email: str) -> dict:
     """
-    Look up a Nimbus customer account by email address.
+    Look up a Nimbus Furniture customer account by email address.
     Returns the user record including name, plan, account_status, last_login,
     created_at, total_orders, and store_credit.
     Returns an error dict if no user is found.
@@ -48,14 +48,14 @@ def get_user_by_email(email: str) -> dict:
             }
     return {
         "found": False,
-        "error": f"No Nimbus account found for email: {email}",
+        "error": f"No Nimbus Furniture account found for email: {email}",
     }
 
 
 @mcp.tool
 def get_user_account_status(user_id: str) -> dict:
     """
-    Retrieve the account plan and status details for a Nimbus user by their user ID.
+    Retrieve the account plan and status details for a Nimbus Furniture customer by their user ID.
     Returns plan type, account status, and (if suspended) the suspension reason.
     Returns an error dict if the user_id is not found.
     """
@@ -74,18 +74,21 @@ def get_user_account_status(user_id: str) -> dict:
             # Plan details
             if user["plan"] == "premium":
                 result["plan_details"] = (
-                    "Nimbus Premium: free standard shipping, 10% member discount, "
-                    "early access to sales, priority support. $9.99/month."
+                    "Nimbus Premium: free standard shipping on all furniture orders, "
+                    "free White Glove Delivery & assembly on large items, "
+                    "10% member discount on all products, early access to new collections and sales, "
+                    "priority support, and free access to the Nimbus Design Concierge. $9.99/month or $89.99/year."
                 )
             else:
                 result["plan_details"] = (
-                    "Nimbus Free: standard shipping rates apply, regular support. "
-                    "Upgrade to Premium for $9.99/month."
+                    "Nimbus Free: standard shipping rates apply, White Glove Delivery available for $49/item, "
+                    "regular support. Upgrade to Nimbus Premium for $9.99/month to unlock free shipping, "
+                    "assembly, a 10% discount, and the Design Concierge service."
                 )
             return result
     return {
         "found": False,
-        "error": f"No Nimbus account found for user_id: {user_id}",
+        "error": f"No Nimbus Furniture account found for user_id: {user_id}",
     }
 
 
