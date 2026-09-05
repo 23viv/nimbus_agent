@@ -101,11 +101,13 @@ Escalate for:
 # ── Graph state ────────────────────────────────────────────────────────────────
 class State(TypedDict):
     """
-    The only state the graph tracks is the message list.
+    The graph state tracks the message list and the logged-in user's identity.
     add_messages is a reducer that appends new messages rather than replacing
     the whole list, so each node just returns the messages it wants to add.
     """
     messages: Annotated[list, add_messages]
+    user_name: str
+    user_email: str
 
 
 # ── Graph builder ──────────────────────────────────────────────────────────────
@@ -133,11 +135,21 @@ def build_graph(chat_model: Runnable, langchain_tools: list) -> Runnable:
     def agent_node(state: State) -> dict:
         """
         Call the LLM with the system prompt prepended to the current history.
-        @observe creates a named Langfuse span for this LLM call, nested
-        inside the parent run_agent_turn trace, so you can inspect the exact
-        messages sent in the Langfuse UI.
+        If a user is logged in, their identity is injected into the system prompt
+        so the agent knows who it's talking to without asking for email.
+        @observe creates a named Langfuse span for this LLM call.
         """
-        messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
+        prompt = SYSTEM_PROMPT
+        user_name = state.get("user_name", "")
+        user_email = state.get("user_email", "")
+        if user_name and user_email:
+            prompt += (
+                f"\n\n## Current Customer\n"
+                f"The logged-in customer is **{user_name}** (email: {user_email}). "
+                f"You already know their identity — do NOT ask for their email again. "
+                f"When they ask about their account, use their email directly with the lookup tools."
+            )
+        messages = [SystemMessage(content=prompt)] + state["messages"]
         response = model_with_tools.invoke(messages)
         return {"messages": [response]}
 
@@ -167,6 +179,8 @@ async def run_agent_turn(
     conversation_history: list,
     graph: Runnable,
     session_id: str = "default_session",
+    user_name: str = "",
+    user_email: str = "",
 ) -> str:
     """
     Top-level entry point for one user turn.
@@ -176,6 +190,9 @@ async def run_agent_turn(
     A langfuse.langchain.CallbackHandler is created here with session_id tracking
     and passed into the graph invocation so that every LangGraph node span is nested
     inside this Langfuse trace automatically.
+
+    user_name and user_email are injected into the graph state so the agent_node
+    can personalise the system prompt and skip the "what's your email?" step.
     """
     conversation_history.append(HumanMessage(content=user_message))
 
@@ -188,14 +205,18 @@ async def run_agent_turn(
     conversation_history[-1] = HumanMessage(content=effective_message)
 
     # Build a per-turn Langfuse callback handler and propagate the session_id
-    # so ALL child observations (agent_node span, tool spans, LangChain callbacks)
-    # are automatically grouped under the same Langfuse session.
-    # Note: CallbackHandler in langfuse 4.x does NOT accept session_id in the
-    # constructor — session grouping is handled entirely by propagate_attributes.
+    # + user_id so ALL child observations are grouped in Langfuse.
     langfuse_handler = CallbackHandler()
-    with propagate_attributes(session_id=session_id):
+    propagate_kwargs = {"session_id": session_id}
+    if user_email:
+        propagate_kwargs["user_id"] = user_email
+    with propagate_attributes(**propagate_kwargs):
         result = await graph.ainvoke(
-            {"messages": conversation_history},
+            {
+                "messages": conversation_history,
+                "user_name": user_name,
+                "user_email": user_email,
+            },
             config={"callbacks": [langfuse_handler]},
         )
 
@@ -207,7 +228,6 @@ async def run_agent_turn(
     conversation_history.extend(result["messages"])
 
     raw_response = result["messages"][-1].content or ""
-
 
     # ── Output guardrails ──────────────────────────────────────────────────────
     out_result = output_guardrails(raw_response)

@@ -2,6 +2,11 @@
 .env
 .env.example
 
+# ── Auth credentials (NEVER commit) ───────────────────────────────────────────
+data/auth_users.json
+
+.env.example
+
 # ── Python ─────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]

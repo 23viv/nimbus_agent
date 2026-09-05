@@ -8,6 +8,7 @@ Then start this: python server.py
 """
 
 import asyncio
+import json
 import os
 import sys
 import uuid
@@ -119,10 +120,38 @@ async def root():
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
 
 class ChatResponse(BaseModel):
     reply: str
     session_id: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+_AUTH_FILE = Path(__file__).parent / "data" / "auth_users.json"
+
+
+def _load_auth_users() -> list[dict]:
+    """Load the auth credentials file."""
+    if not _AUTH_FILE.exists():
+        return []
+    with open(_AUTH_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+@app.post("/login")
+async def login(req: LoginRequest):
+    """Validate email + password against data/auth_users.json."""
+    users = _load_auth_users()
+    for u in users:
+        if u["email"].lower() == req.email.lower() and u["password"] == req.password:
+            return {"name": u["name"], "email": u["email"]}
+    raise HTTPException(status_code=401, detail="Invalid email or password.")
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -134,6 +163,8 @@ async def chat(req: ChatRequest):
 
     # Assign or reuse session_id
     session_id = req.session_id.strip() if req.session_id and req.session_id.strip() else str(uuid.uuid4())
+    user_email = (req.user_email or "").strip()
+    user_name = (req.user_name or "").strip()
 
     # ── Input guardrails (fast, synchronous — runs before the LLM) ────────────────
     guard = input_guardrails(req.message)
@@ -154,25 +185,27 @@ async def chat(req: ChatRequest):
         elif role == "assistant":
             conversation_history.append(AIMessage(content=content))
 
-    # 2. Run Agent turn (passes session_id for Langfuse session observability)
+    # 2. Run Agent turn (passes session_id + user context for Langfuse observability)
     reply = await run_agent_turn(
         user_message=req.message,
         conversation_history=conversation_history,
         graph=_graph,
         session_id=session_id,
+        user_name=user_name,
+        user_email=user_email,
     )
 
-    # 3. Save User message & Assistant reply to MongoDB Atlas
-    await db.save_message(session_id=session_id, role="user", content=req.message)
-    await db.save_message(session_id=session_id, role="assistant", content=reply)
+    # 3. Save User message & Assistant reply
+    await db.save_message(session_id=session_id, role="user", content=req.message, user_email=user_email)
+    await db.save_message(session_id=session_id, role="assistant", content=reply, user_email=user_email)
 
     return ChatResponse(reply=reply, session_id=session_id)
 
 
 @app.get("/sessions")
-async def list_sessions():
-    """Retrieve list of all chat sessions stored in MongoDB Atlas."""
-    sessions = await db.get_all_sessions()
+async def list_sessions(user_email: str = ""):
+    """Retrieve list of chat sessions, optionally filtered by user_email."""
+    sessions = await db.get_all_sessions(user_email=user_email)
     return {"sessions": sessions}
 
 
