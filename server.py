@@ -1,6 +1,6 @@
 """
 Nimbus Furniture Support Agent — FastAPI Web Server
-Exposes /chat, /reset, /health endpoints and serves the UI.
+Exposes /chat, /reset, /health endpoints.
 
 The MCP server is a SEPARATE service in nimbus_mcp/.
 Start locally:  cd ../nimbus_mcp && python server.py
@@ -19,8 +19,6 @@ from typing import Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel
 
