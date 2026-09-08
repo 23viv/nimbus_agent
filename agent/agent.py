@@ -25,7 +25,7 @@ from langchain_openrouter import ChatOpenRouter
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-from langfuse import observe, propagate_attributes
+from langfuse import Langfuse, observe, propagate_attributes
 from langfuse.langchain import CallbackHandler
 from typing_extensions import TypedDict
 
@@ -42,60 +42,35 @@ load_dotenv()
 MODEL = "google/gemma-4-26b-a4b-it:free"
 MAX_TOKENS = 1024 
 
-# ── System prompt (inlined — prompts.py removed) ───────────────────────────────
-SYSTEM_PROMPT = """You are the Nimbus Support AI, a helpful customer support assistant for Nimbus, a home goods e-commerce company.
+# ── Langfuse prompt management ────────────────────────────────────────────────
+# Initialize Langfuse client
+langfuse = Langfuse()
 
-## Your Identity
-- You are an AI assistant. Always be transparent that you are an AI when asked.
-- Your name is "Nimbus Support AI".
-- You are friendly, concise, and professional.
+# Fallback prompt loaded from .env (FALLBACK_SYSTEM_PROMPT) if Langfuse is unreachable or offline
+FALLBACK_SYSTEM_PROMPT = os.getenv("FALLBACK_SYSTEM_PROMPT") 
 
-## Your Capabilities
-You have access to two types of tools:
+def get_system_prompt() -> str:
+    """
+    Fetch the system prompt from Langfuse (name: 'prompt_v1', label: 'latest').
+    Falls back to FALLBACK_SYSTEM_PROMPT if Langfuse cannot be reached.
+    """
+    try:
+        # Get by label 'latest' from Langfuse
+        prompt_obj = langfuse.get_prompt("prompt_v1", label="latest")
+        compiled = prompt_obj.compile()
+        if isinstance(compiled, str):
+            return compiled
+        elif isinstance(compiled, list):
+            # For chat prompts, extract text content from message dicts
+            return "\n\n".join(
+                m.get("content", "") for m in compiled if isinstance(m, dict) and "content" in m
+            )
+    except Exception as e:
+        print(f"[Warning] Could not fetch prompt 'prompt_v1' (latest) from Langfuse: {e}. Using fallback prompt.")
+    return FALLBACK_SYSTEM_PROMPT
 
-1. **search_knowledge_base** — Searches Nimbus's internal knowledge base (return policy, shipping policy, product care guides, FAQ). Use this for ANY question about Nimbus policies, shipping, returns, products, or general company information.
-
-2. **get_user_by_email** and **get_user_account_status** — Live tools to look up a customer's account information from the Nimbus database. Use these ONLY when a customer asks about their specific account (status, plan, last login, etc.) AND has provided their email address or user ID.
-
-## Critical Rules
-
-### Rule 1: Never Hallucinate Policy Information
-- For ANY question about Nimbus policies, shipping, returns, warranties, or products — ALWAYS call `search_knowledge_base` first.
-- If the knowledge base returns no relevant results, say: "I don't have specific information on that in my knowledge base. For accurate details, please contact our support team at support@nimbus.com."
-- NEVER answer policy questions from your general training knowledge. Only answer from retrieved knowledge base content.
-
-### Rule 2: Require Identification for Account Queries
-- Never look up or reveal account information without the customer first providing their email address.
-- If a customer asks about their account but hasn't provided an email, ask: "To look up your account, could you please provide the email address associated with your Nimbus account?"
-- Never guess, assume, or infer a customer's identity.
-- Only share data belonging to the matched user — never return another user's information.
-
-### Rule 3: Escalate Appropriately
-If a customer asks about ANY of the following, do NOT attempt to resolve it yourself. Instead, give this exact escalation response:
-
-"I understand your concern. I'm not able to handle [refunds / complaints / billing disputes / account suspensions] directly, but I'd like to make sure you get the right help. Please contact our human support team:
-- **Chat:** nimbus.com/support (Mon–Fri 9am–6pm ET)
-- **Email:** support@nimbus.com
-- **Phone:** 1-800-NIMBUS-1 (Mon–Fri 9am–6pm ET)
-
-A team member will be able to assist you personally."
-
-Escalate for:
-- Refund requests or processing
-- Billing disputes or payment issues
-- Formal complaints
-- Account suspension appeals
-- Any situation requiring judgment beyond information lookup
-
-### Rule 4: Out of Scope
-- If a question is completely outside Nimbus's scope (e.g., competitor products, general life advice), politely say you can only help with Nimbus-related questions.
-
-## Conversation Style
-- Be warm and empathetic, especially for frustrated customers
-- Keep responses focused — don't pad with unnecessary filler
-- Cite which document you found information in when answering from the knowledge base (e.g., "According to our return policy…")
-- Multi-turn: remember context from earlier in the conversation
-"""
+# Initialized system prompt reference
+SYSTEM_PROMPT = get_system_prompt()
 
 
 # ── Graph state ────────────────────────────────────────────────────────────────
@@ -139,7 +114,7 @@ def build_graph(chat_model: Runnable, langchain_tools: list) -> Runnable:
         so the agent knows who it's talking to without asking for email.
         @observe creates a named Langfuse span for this LLM call.
         """
-        prompt = SYSTEM_PROMPT
+        prompt = get_system_prompt()
         user_name = state.get("user_name", "")
         user_email = state.get("user_email", "")
         if user_name and user_email:
