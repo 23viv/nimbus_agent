@@ -12,7 +12,7 @@ Built with a modern open-source stack featuring **ChromaDB Vector RAG**, **Mongo
 
 | Layer | Technology |
 |---|---|
-| **LLM** | [OpenRouter](https://openrouter.ai/) → `google/gemma-4-26b-a4b-it:free` |
+| **LLM** | [Groq](https://groq.com/) → `qwen/qwen3.8-27b` |
 | **Orchestration** | [LangGraph](https://github.com/langchain-ai/langgraph) StateGraph |
 | **Vector DB (RAG)** | [ChromaDB](https://www.trychroma.com/) + [SentenceTransformers](https://sbert.net/) (`all-MiniLM-L6-v2`) |
 | **Session DB** | [MongoDB Atlas](https://www.mongodb.com/atlas) (`motor` async driver + `pymongo`) |
@@ -39,7 +39,7 @@ FastAPI /chat endpoint
         ▼
 LangGraph StateGraph
         │
-        ├──► agent node (Gemma via OpenRouter)
+        ├──► agent node (Llama 3 via Groq)
         │         │
         │         ├──► search_knowledge_base ──► ChromaDB (vector_store/) ──► docs/*.txt
         │         │
@@ -124,7 +124,7 @@ python scripts/ingest.py --rebuild
 ### 1. Prerequisites
 
 - Python 3.10+
-- [OpenRouter](https://openrouter.ai/keys) API key
+- [Groq](https://console.groq.com/keys) API key
 - [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster (free tier works)
 - [Langfuse](https://cloud.langfuse.com) account (optional — for observability)
 - **`nimbus_mcp` running** on `http://127.0.0.1:8001` (see [nimbus_mcp README](../nimbus_mcp/README.md))
@@ -152,8 +152,9 @@ pip install -r requirements.txt
 Create a `.env` file in this directory:
 
 ```env
-# Required — OpenRouter API key (get one at https://openrouter.ai/keys)
-OPENROUTER_API_KEY=sk-or-...
+# Required — Groq API key (get one at https://console.groq.com/keys)
+GROQ_API_KEY=gsk_...
+GROQ_MODEL=qwen/qwen3.8-27b
 
 # Required — MongoDB Atlas
 MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?appName=Cluster0"
@@ -232,7 +233,7 @@ Every agent turn is traced in **Langfuse** and grouped by `session_id`:
 ```
 run_agent_turn (session_id="abc-123")
 ├── guardrails.input
-├── agent_node                    ← LLM call (Gemma via OpenRouter)
+├── agent_node                    ← LLM call (Llama 3 via Groq)
 │   └── [LangGraph CallbackHandler spans]
 ├── search_knowledge_base
 │   └── rag.retrieve              ← ChromaDB vector similarity search
@@ -257,7 +258,7 @@ Deploy as a **Web Service** from your GitHub repo:
 **Environment variables to set in Render dashboard:**
 
 ```
-OPENROUTER_API_KEY=sk-or-...
+GROQ_API_KEY=gsk_...
 MONGODB_URI=mongodb+srv://...
 MONGODB_DB_NAME=nimbus_db
 MCP_SERVER_URL=https://nimbus-mcp.onrender.com/mcp
@@ -300,7 +301,7 @@ User account lookups are served by a **separate FastMCP service** (`nimbus_mcp`)
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 langchain>=0.2.0
-langchain-openrouter>=0.1.0
+langchain-groq>=0.2.0
 langchain-core>=0.3.0
 langgraph>=0.2.0
 langfuse>=2.0.0

@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
-from langchain_openrouter import ChatOpenRouter
+from langchain_groq import ChatGroq
 
 from agent import rag
 from agent.agent import MODEL, MAX_TOKENS, SYSTEM_PROMPT, build_graph, run_agent_turn
@@ -230,9 +230,9 @@ async def run_test(
 
 
 async def main():
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY") or os.getenv("groq_key")
     if not api_key:
-        print("ERROR: OPENROUTER_API_KEY not set. Create a .env file.")
+        print("ERROR: GROQ_API_KEY not set. Create a .env file.")
         sys.exit(1)
 
     print("Initialising knowledge base…", end=" ", flush=True)
@@ -243,7 +243,7 @@ async def main():
         mcp_tool_defs = await mcp_client.list_tools()
         langchain_tools = build_langchain_tools(mcp_tool_defs, mcp_client)
 
-        chat_model = ChatOpenRouter(model=MODEL, max_tokens=MAX_TOKENS)
+        chat_model = ChatGroq(model=MODEL, max_tokens=MAX_TOKENS, api_key=api_key)
         graph = build_graph(chat_model, langchain_tools)
 
         total = len(TEST_CASES)

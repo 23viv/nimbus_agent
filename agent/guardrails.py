@@ -120,8 +120,8 @@ _OUTPUT_LEAK_PATTERNS: list[tuple[re.Pattern, str]] = [
     # API / secret key patterns in output
     (re.compile(r"(?:sk-|pk-lf-|lsv2_)[A-Za-z0-9_\-]{10,}"),
      "secret_key_in_output"),
-    # OpenRouter key pattern
-    (re.compile(r"sk-or-v1-[A-Za-z0-9]{30,}"),
+    # Groq API key pattern
+    (re.compile(r"gsk_[A-Za-z0-9]{20,}"),
      "api_key_in_output"),
 ]
 

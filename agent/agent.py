@@ -21,7 +21,7 @@ from typing import Annotated
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import Runnable
-from langchain_openrouter import ChatOpenRouter
+from langchain_groq import ChatGroq
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -39,7 +39,7 @@ from agent.tools import build_langchain_tools
 # ── Configuration ──────────────────────────────────────────────────────────────
 load_dotenv()
 
-MODEL = "google/gemma-4-26b-a4b-it:free"
+MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
 MAX_TOKENS = 1024 
 
 # ── Langfuse prompt management ────────────────────────────────────────────────
@@ -220,12 +220,12 @@ def _print_banner():
 
 
 async def main():
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY") or os.getenv("groq_key")
     if not api_key:
         print(
-            "ERROR: OPENROUTER_API_KEY not set.\n"
-            "Create a .env file with: OPENROUTER_API_KEY=sk-or-...\n"
-            "Get a key at https://openrouter.ai/keys\n"
+            "ERROR: GROQ_API_KEY not set.\n"
+            "Create a .env file with: GROQ_API_KEY=gsk_...\n"
+            "Get a key at https://console.groq.com/keys\n"
             "See .env.example for reference."
         )
         sys.exit(1)
@@ -244,7 +244,7 @@ async def main():
         langchain_tools = build_langchain_tools(mcp_tool_defs, mcp_client)
         print(f"ready ({len(mcp_tool_defs)} MCP tools).")
 
-        chat_model = ChatOpenRouter(model=MODEL, max_tokens=MAX_TOKENS)
+        chat_model = ChatGroq(model=MODEL, max_tokens=MAX_TOKENS, api_key=api_key)
         graph = build_graph(chat_model, langchain_tools)
 
         conversation_history: list = []

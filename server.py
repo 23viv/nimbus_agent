@@ -37,36 +37,6 @@ _graph = None
 _mcp_ready = False
 
 
-async def _connect_mcp_and_build_graph():
-    """
-    Connect to the standalone MCP HTTP server and build the agent graph.
-    Falls back to RAG-only if the MCP server is not reachable.
-    """
-    global _graph, _mcp_ready
-    from agent.mcp_client import NimbusMCPClient
-    from langchain_openrouter import ChatOpenRouter
-
-    chat_model = ChatOpenRouter(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-    )
-
-    try:
-        async with NimbusMCPClient() as mcp_client:
-            mcp_tool_defs = await mcp_client.list_tools()
-            langchain_tools = build_langchain_tools(mcp_tool_defs, mcp_client)
-            print(f"[startup] MCP ready — {len(mcp_tool_defs)} tools.")
-            _mcp_ready = True
-            _graph = build_graph(chat_model, langchain_tools)
-            print(f"[startup] Agent graph compiled ({MODEL} with MCP).")
-    except Exception as exc:
-        print(f"[startup] MCP unavailable ({exc}). Running RAG-only.")
-        print("[startup] Make sure the MCP server is running: cd ../nimbus_mcp && python server.py")
-        langchain_tools = build_langchain_tools([], _MockMCPClient())
-        _graph = build_graph(chat_model, langchain_tools)
-        print(f"[startup] Agent graph compiled ({MODEL} RAG-only).")
-
-
 class _MockMCPClient:
     """Placeholder so build_langchain_tools works with zero MCP tools."""
     pass
@@ -74,7 +44,9 @@ class _MockMCPClient:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _graph
+    global _graph, _mcp_ready
+    from agent.mcp_client import NimbusMCPClient
+    from langchain_groq import ChatGroq
 
     # 1. Initialize MongoDB connection
     await db.init_db()
@@ -84,12 +56,35 @@ async def lifespan(app: FastAPI):
     print(f"[startup] Knowledge base ready — {count} chunks.")
 
     # 3. Connect to the standalone MCP server and build the agent graph
-    await _connect_mcp_and_build_graph()
+    api_key = os.getenv("GROQ_API_KEY") or os.getenv("groq_key")
+    chat_model = ChatGroq(model=MODEL, max_tokens=MAX_TOKENS, api_key=api_key)
+
+    mcp_client_ctx = None
+    try:
+        mcp_client_ctx = NimbusMCPClient()
+        mcp_client = await mcp_client_ctx.__aenter__()
+        
+        mcp_tool_defs = await mcp_client.list_tools()
+        langchain_tools = build_langchain_tools(mcp_tool_defs, mcp_client)
+        print(f"[startup] MCP ready — {len(mcp_tool_defs)} tools.")
+        _mcp_ready = True
+        _graph = build_graph(chat_model, langchain_tools)
+        print(f"[startup] Agent graph compiled ({MODEL} with MCP).")
+    except Exception as exc:
+        print(f"[startup] MCP unavailable ({exc}). Running RAG-only.")
+        print("[startup] Make sure the MCP server is running: cd ../nimbus_mcp && python server.py")
+        langchain_tools = build_langchain_tools([], _MockMCPClient())
+        _graph = build_graph(chat_model, langchain_tools)
+        print(f"[startup] Agent graph compiled ({MODEL} RAG-only).")
 
     if _graph is None:
         print("[startup] WARNING: graph not ready — continuing anyway.")
 
     yield  # ── server is live ──
+
+    if mcp_client_ctx:
+        await mcp_client_ctx.__aexit__(None, None, None)
+
 
     print("[shutdown] Done.")
 

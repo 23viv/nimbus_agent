@@ -1,7 +1,7 @@
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 langchain>=0.2.0
-langchain-openrouter>=0.1.0
+langchain-groq>=0.2.0
 langchain-core>=0.3.0
 langgraph>=0.2.0
 langfuse>=2.0.0
