@@ -125,24 +125,12 @@ class LoginRequest(BaseModel):
     password: str
 
 
-_AUTH_FILE = Path(__file__).parent / "data" / "auth_users.json"
-
-
-def _load_auth_users() -> list[dict]:
-    """Load the auth credentials file."""
-    if not _AUTH_FILE.exists():
-        return []
-    with open(_AUTH_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
 @app.post("/login")
 async def login(req: LoginRequest):
-    """Validate email + password against data/auth_users.json."""
-    users = _load_auth_users()
-    for u in users:
-        if u["email"].lower() == req.email.lower() and u["password"] == req.password:
-            return {"name": u["name"], "email": u["email"]}
+    """Validate email + password against MongoDB (fallback to data/auth_users.json)."""
+    user = await db.authenticate_user(req.email, req.password)
+    if user:
+        return user
     raise HTTPException(status_code=401, detail="Invalid email or password.")
 
 

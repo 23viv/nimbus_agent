@@ -19,6 +19,7 @@ MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "nimbus_db")
 _client = None
 _db = None
 _collection = None
+_auth_collection = None
 _mongo_ready = False
 
 # Fallback session store: {session_id: [messages]}
@@ -68,6 +69,7 @@ async def init_db():
         _client = AsyncIOMotorClient(MONGODB_URI, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
         _db = _client[MONGODB_DB_NAME]
         _collection = _db["chat_messages"]
+        _auth_collection = _db["auth_users"]
         # Ping database to verify connection
         await _client.admin.command('ping')
         _mongo_ready = True
@@ -193,3 +195,34 @@ async def clear_session(session_id: str) -> bool:
         _save_local_fallback()
 
     return True
+
+
+async def authenticate_user(email: str, password: str) -> Optional[dict]:
+    """
+    Authenticate a user by email and password.
+    Checks MongoDB 'auth_users' collection if connected, otherwise falls back to data/auth_users.json.
+    """
+    email_lower = email.strip().lower()
+
+    if _mongo_ready and _auth_collection is not None:
+        try:
+            user = await _auth_collection.find_one({"email": {"$regex": f"^{email_lower}$", "$options": "i"}})
+            if user and user.get("password") == password:
+                return {"name": user["name"], "email": user["email"]}
+            return None
+        except Exception as exc:
+            print(f"[db] Error authenticating user via MongoDB ({exc}). Falling back to local auth_users.json.")
+
+    # Fallback to local auth_users.json
+    auth_file = Path(__file__).parent.parent / "data" / "auth_users.json"
+    if auth_file.exists():
+        try:
+            with open(auth_file, "r", encoding="utf-8") as f:
+                users = json.load(f)
+            for u in users:
+                if u.get("email", "").lower() == email_lower and u.get("password") == password:
+                    return {"name": u["name"], "email": u["email"]}
+        except Exception as exc:
+            print(f"[db] Error reading local auth_users.json ({exc}).")
+            
+    return None
