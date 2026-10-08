@@ -15,6 +15,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+import uvicorn
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -99,15 +100,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_UI_DIR = Path(__file__).parent / "ui"
-if _UI_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(_UI_DIR)), name="static")
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return FileResponse(str(_UI_DIR / "index.html"))
+    return json.dumps({"message": "Nimbus Support AI is running."})
+
 
 
 class ChatRequest(BaseModel):
@@ -242,7 +241,9 @@ async def health():
 
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("server:app", host="127.0.0.1", port=8000, reload=True)
-
-
+    uvicorn.run(
+        "server:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+    )
