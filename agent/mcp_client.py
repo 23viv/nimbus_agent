@@ -17,7 +17,12 @@ from typing import Any
 
 from dotenv import load_dotenv
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+try:
+    # mcp >= 2.0 renamed the function
+    from mcp.client.streamable_http import streamable_http_client as streamablehttp_client
+except ImportError:
+    # mcp 1.x original name
+    from mcp.client.streamable_http import streamablehttp_client
 
 load_dotenv()
 
