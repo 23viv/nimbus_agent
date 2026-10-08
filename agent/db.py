@@ -53,7 +53,7 @@ def _save_local_fallback():
 
 async def init_db():
     """Initialize AsyncIOMotorClient connection to MongoDB Atlas."""
-    global _client, _db, _collection, _mongo_ready
+    global _client, _db, _collection, _auth_collection, _mongo_ready
 
     # Always load local fallback so we have access to past sessions immediately
     _load_local_fallback()
