@@ -46,7 +46,13 @@ class NimbusMCPClient:
 
     async def __aenter__(self) -> "NimbusMCPClient":
         self._http_ctx = streamablehttp_client(_MCP_SERVER_URL)
-        read, write, _ = await self._http_ctx.__aenter__()
+        result = await self._http_ctx.__aenter__()
+
+        # mcp >= 1.8 returns (read, write) ; older versions return (read, write, session_url_getter)
+        if len(result) == 2:
+            read, write = result
+        else:
+            read, write = result[0], result[1]
 
         self._session_ctx = ClientSession(read, write)
         self._session = await self._session_ctx.__aenter__()

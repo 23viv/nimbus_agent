@@ -40,6 +40,11 @@ _graph = None
 _mcp_ready = False
 
 
+class _MockMCPClient:
+    """Placeholder so build_langchain_tools works with zero MCP tools."""
+    pass
+
+
 
 
 @asynccontextmanager
