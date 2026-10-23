@@ -20,6 +20,8 @@ _client = None
 _db = None
 _collection = None
 _auth_collection = None
+_orders_collection = None
+_products_collection = None
 _mongo_ready = False
 
 # Fallback session store: {session_id: [messages]}
@@ -70,6 +72,8 @@ async def init_db():
         _db = _client[MONGODB_DB_NAME]
         _collection = _db["chat_messages"]
         _auth_collection = _db["auth_users"]
+        _orders_collection = _db["orders"]
+        _products_collection = _db["products"]
         # Ping database to verify connection
         await _client.admin.command('ping')
         _mongo_ready = True

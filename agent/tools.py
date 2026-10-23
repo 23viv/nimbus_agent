@@ -83,14 +83,19 @@ def _make_mcp_tool(tool_def: dict, mcp_client: Any) -> StructuredTool:
     schema = tool_def.get("input_schema") or {}
     properties = schema.get("properties", {})
 
-    # Dynamically build a Pydantic model matching the MCP tool's input schema.
-    # All MCP args in this project are strings; extend here if needed.
-    fields: dict[str, Any] = {field_name: (str, ...) for field_name in properties}
+    required_fields = set(schema.get("required", []))
+    fields: dict[str, Any] = {}
+    for field_name, prop in properties.items():
+        is_req = field_name in required_fields
+        default_val = ... if is_req else prop.get("default", None)
+        fields[field_name] = (Any, default_val)
+
     ArgsModel = create_model(f"{name}_Args", **fields)
 
     def _factory(tool_name: str, client: Any):
         async def _tool_coroutine(**kwargs: Any) -> str:
-            result = await client.call_tool(tool_name, kwargs)
+            clean_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+            result = await client.call_tool(tool_name, clean_kwargs)
             _log_tool_call(tool_name, kwargs, result)
             return result
 

@@ -30,6 +30,8 @@ from agent import db, rag
 from agent.agent import MODEL, MAX_TOKENS, build_graph, run_agent_turn
 from agent.guardrails import input_guardrails, reset_repetition_tracker
 from agent.tools import build_langchain_tools
+from agent.mcp_client import NimbusMCPClient
+from langchain_groq import ChatGroq
 
 load_dotenv()
 
@@ -38,17 +40,11 @@ _graph = None
 _mcp_ready = False
 
 
-class _MockMCPClient:
-    """Placeholder so build_langchain_tools works with zero MCP tools."""
-    pass
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _graph, _mcp_ready
-    from agent.mcp_client import NimbusMCPClient
-    from langchain_groq import ChatGroq
-
     # 1. Initialize MongoDB connection
     await db.init_db()
 
